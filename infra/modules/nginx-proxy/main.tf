@@ -22,8 +22,8 @@ resource "docker_container" "nginx_proxy_manager" {
   image             = docker_image.nginx_proxy_manager.image_id
   must_run          = false
   publish_all_ports = false
-  restart = "always"
-  
+  restart           = "always"
+
 
   # Port mappings
   ports {

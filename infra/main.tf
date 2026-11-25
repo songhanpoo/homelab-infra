@@ -3,7 +3,7 @@ module "talos" {
   source = "./modules/talos"
   nodes  = local.configs.clusters.nodes
   image = {
-    version    = local.configs.clusters.image.version
+    version = local.configs.clusters.image.version
     schematics = {
       for k, v in try(local.configs.clusters.image.schematics, {}) : k => jsonencode(v)
     }
@@ -31,7 +31,7 @@ module "virtual-machine" {
   source = "./modules/kvm"
   nodes  = local.configs.databases.nodes
   image = {
-    version    = local.configs.databases.image.version
+    version = local.configs.databases.image.version
     # schematic  = jsonencode(local.configs.clusters.image.schematic)
     image_name = local.configs.databases.image.name
   }
