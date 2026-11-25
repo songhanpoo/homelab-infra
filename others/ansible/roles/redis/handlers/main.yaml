@@ -1,0 +1,8 @@
+---
+- name: Restart Redis
+  systemd:
+    name: redis-server
+    state: restarted
+
+- name: Reload Sysctl
+  command: sysctl --system

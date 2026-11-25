@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: { { include "thinkread.fullname" . } }
+  labels:
+    app: { { include "thinkread.name" . } }
+spec:
+  type: { { .Values.service.type } }
+  ports:
+    - port: { { .Values.service.port } }
+      targetPort: { { .Values.service.targetPort } }
+      protocol: TCP
+  selector:
+    app: { { include "thinkread.name" . } }

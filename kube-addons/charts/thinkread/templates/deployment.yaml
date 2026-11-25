@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "thinkread.fullname" . }}
+  labels:
+    app: {{ include "thinkread.name" . }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "thinkread.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "thinkread.name" . }}
+    spec:
+      containers:
+        - name: thinkread
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DATA_DIR
+              value: "/data"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "thinkread.fullname" . }}-pvc
+      restartPolicy: Always

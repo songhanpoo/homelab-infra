@@ -1,0 +1,17 @@
+name: thinkread
+version: 0.1.0
+description: A Helm chart for deploying the ThinkRead EPUB library and reader
+maintainers:
+  - name: Your Name
+    email: your.email@example.com
+keywords:
+  - thinkread
+  - ebook
+  - epub
+  - reader
+home: https://github.com/nikunjsingh/thinkread-ebook-reader
+sources:
+  - https://github.com/nikunjsingh/thinkread-ebook-reader
+icon: https://github.com/user-attachments/assets/logo.svg
+dependencies: []
+appVersion: "latest"

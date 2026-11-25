@@ -1,0 +1,33 @@
+image:
+  repository: nikunjsingh/thinkread-ebook-reader
+  tag: v1.2.2
+
+service:
+  type: ClusterIP
+  port: 8080
+
+environment:
+  DATA_DIR: /data
+  BOOKS_DIR: /books
+
+resources: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+persistence:
+  enabled: true
+  storageClassName: "" # Set to your storage class, e.g. "nfs"
+  size: 5Gi
+
+controller:
+  ingress:
+    enabled: true
+    ingressClassName: ""
+    hostName: ""
+    path: /
+  persistence:
+    storageClass: ""

@@ -1,0 +1,43 @@
+# ─── Jenkins Job Inventory for Non-Production ───────────────────────
+# This file drives the seed job. The nonprod.groovy script reads this
+# YAML and creates all folders, JTE folders, and multibranch pipelines.
+
+# ─── Plain Folders ──────────────────────────────────────────────────
+folders:
+  - path: "Common_Utils"
+    description: "Folder containing Common Utility Jobs"
+
+  - path: "Common_Utils/Cron"
+    displayName: "Cron Jobs"
+    description: "Folder containing cron jobs"
+
+  - path: "VISA_BULLETIN"
+    description: "Folder containing specific project"
+
+# ─── JTE Governance Folders ─────────────────────────────────────────
+# Each entry creates a folder with JTE configurationProvider + librarySources.
+jteFolders:
+  - folderPath: "VISA_BULLETIN/CI"
+    displayName: "CI"
+    description: "Continuous Integration pipelines using JTE"
+    repoUrl: "git@github.com:songhanpoo/jenkins-inventory.git"
+    credentialsId: "github-private"
+    branch: "*/master"
+    configBaseDir: "templates/ci"
+    libraryBaseDir: "libraries"
+
+# ─── Multibranch Pipeline Jobs ──────────────────────────────────────
+# Each entry creates a multibranch pipeline job.
+# Set useJte: false to use standard Jenkinsfile scanning.
+multibranchJobs:
+  - name: "next-visa-bulletin"
+    repoUrl: "git@github.com:songhanpoo/next-visa-bulletin.git"
+    credentialsId: "github-private"
+    parentFolder: "VISA_BULLETIN/CI"
+    useJte: true
+
+  - name: "visa-bulletin"
+    repoUrl: "git@github.com:songhanpoo/visa-bulletin.git"
+    credentialsId: "github-private"
+    parentFolder: "VISA_BULLETIN/CI"
+    useJte: true

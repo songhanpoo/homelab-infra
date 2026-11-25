@@ -1,0 +1,8 @@
+storage_classes:
+  nfs-csi:
+    server: "192.168.1.17"
+    share: "/volume2/talos-clusters"
+  # nfs-csi-builds:
+  #   server: "192.168.1.17"
+  #   share: "/volume2/talos-clusters"
+  #   mount_permissions: "0777"

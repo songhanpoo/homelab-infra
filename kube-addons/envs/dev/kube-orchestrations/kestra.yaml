@@ -1,0 +1,119 @@
+kestra:
+  name: "kestra"
+  namespace: "kube-orchestrations"
+  chart: "kestra"
+  repository: "https://helm.kestra.io/"
+  version: "2.0.7"
+  values_yaml:
+    image:
+      repository: nexus-docker.local.proxy/kestra/kestra
+    imagePullSecrets:
+      - name: nexus-docker-registries
+    deployments:
+      standalone:
+        enabled: true
+        dind:
+          enabled: false
+    dind:
+      enabled: false
+    # The chart creates no RBAC; the Kubernetes task runner needs the Kestra
+    # ServiceAccount (named after the release: "kestra") to manage task pods.
+    extraManifests:
+      # The chart has no persistence values; storage is a PVC mounted through common.extraVolumes.
+      - apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          name: kestra-storage
+          namespace: kube-orchestrations
+        spec:
+          storageClassName: nfs-csi
+          accessModes: ["ReadWriteMany"]
+          resources:
+            requests:
+              storage: 10Gi
+      - apiVersion: rbac.authorization.k8s.io/v1
+        kind: Role
+        metadata:
+          name: kestra-task-runner
+          namespace: kestra-executions
+        rules:
+          - apiGroups: [""]
+            resources: ["pods", "pods/log"]
+            verbs: ["create", "delete", "get", "list", "watch"]
+          - apiGroups: [""]
+            resources: ["pods/exec"]
+            verbs: ["create", "get"]
+      - apiVersion: rbac.authorization.k8s.io/v1
+        kind: RoleBinding
+        metadata:
+          name: kestra-task-runner
+          namespace: kestra-executions
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: Role
+          name: kestra-task-runner
+        subjects:
+          - kind: ServiceAccount
+            name: kestra
+            namespace: kube-orchestrations
+    configurations:
+      application:
+        datasources:
+          postgres:
+            url: jdbc:postgresql://192.168.1.120:5432/kestra_production_db?currentSchema=kestra_schema
+            driverClassName: org.postgresql.Driver
+            username: postgres
+            password: wh0lov3me
+        kestra:
+          # OSS has no Policies (EE only); apply the runner to all script tasks via plugin defaults.
+          plugins:
+            defaults:
+              - type: io.kestra.plugin.scripts
+                forced: true
+                values:
+                  taskRunner:
+                    type: io.kestra.plugin.kubernetes.runner.Kubernetes
+                    namespace: kestra-executions
+                    pullPolicy: IfNotPresent
+          url: http://kestra.localdev.me/
+          queue:
+            type: postgres
+          repository:
+            type: postgres
+          storage:
+            type: local
+            local:
+              basePath: /app/storage
+    common:
+      # NFS export is root-owned; hand it to the Kestra user so it can create /app/storage/plugins.
+      initContainers:
+        - name: fix-storage-perms
+          image: nexus-docker.local.proxy/library/busybox:1.37
+          command: ["sh", "-c", "chown -R 1000:1000 /app/storage && chmod -R u+rwX /app/storage"]
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: storage
+              mountPath: /app/storage
+      extraVolumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: kestra-storage
+      extraVolumeMounts:
+        - name: storage
+          mountPath: /app/storage
+      resources:
+        requests:
+          cpu: "500m"
+          memory: "1Gi"
+        limits:
+          cpu: "2"
+          memory: "3Gi"
+    ingress:
+      enabled: true
+      className: "nginx-internal"
+      hosts:
+        - host: "kestra.localdev.me"
+          paths:
+            - path: "/"
+              pathType: "Prefix"

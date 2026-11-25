@@ -1,0 +1,10 @@
+# thinkread:
+#   name: "thinkread"
+#   namespace: "kube-orchestrations"
+#   chart: "./charts/thinkread"
+#   values:
+#     controller.ingress.enabled: "true"
+#     controller.ingress.ingressClassName: "nginx-internal"
+#     controller.ingress.hostName: "thinkread.localdev.me"
+#     controller.ingress.path: "/"
+#     controller.persistence.storageClass: "nfs-csi"

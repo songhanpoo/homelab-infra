@@ -1,0 +1,32 @@
+---
+- name: Install Redis Server package
+  apt:
+    name:
+      - redis-server
+      - redis-tools
+    state: present
+    update_cache: true
+
+# --- Performance tuning (Mandatory for production database saving) ---
+- name: Configure kernel overcommit memory for Redis performance
+  sysctl:
+    name: vm.overcommit_memory
+    value: "1"
+    state: present
+    sysctl_set: true
+  notify: Reload Sysctl
+
+- name: Deploy redis.conf from template
+  template:
+    src: redis.conf.j2
+    dest: /etc/redis/redis.conf
+    owner: redis
+    group: redis
+    mode: '0640'
+  notify: Restart Redis
+
+- name: Ensure Redis service is started and enabled
+  systemd:
+    name: redis-server
+    state: started
+    enabled: true

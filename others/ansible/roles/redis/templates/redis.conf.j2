@@ -1,0 +1,39 @@
+# ====================================================================
+# Redis Configuration File (Managed via Ansible Role)
+# ====================================================================
+
+# --- Network ---
+bind {{ redis_bind_address }}
+port {{ redis_port }}
+protected-mode yes
+tcp-backlog 511
+timeout 0
+tcp-keepalive 300
+
+# --- Security ---
+# Set a strong master password for client authentication
+requirepass {{ redis_password }}
+
+# --- General ---
+daemonize yes
+supervised systemd
+pidfile /var/run/redis/redis-server.pid
+loglevel notice
+logfile /var/log/redis/redis-server.log
+databases 16
+
+# --- Memory Management ---
+maxmemory {{ redis_maxmemory }}
+maxmemory-policy {{ redis_maxmemory_policy }}
+
+# --- Snapshotting (Data Persistence) ---
+dir /var/lib/redis
+dbfilename dump.rdb
+{% for rule in redis_save_rules %}
+save {{ rule }}
+{% endfor %}
+
+# --- Append Only Mode (Alternative/Additional persistence) ---
+appendonly yes
+appendfilename "appendonly.aof"
+appendfsync everysec

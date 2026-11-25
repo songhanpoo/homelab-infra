@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+    #   llama:
+    #     image: ghcr.io/ggerganov/llama.cpp:server
+    #     container_name: llama-server
+    #     restart: unless-stopped
+    #     ports:
+    #       - "8080:8080"
+    #     volumes:
+    #       - ./models:/models
+    #     command: >
+    #       -m /models/Qwen3-14B-Q4_K_M.gguf
+    #       --alias glm-4.7-flash
+    #       --host 0.0.0.0
+    #       --port 8080
+    #       --ctx-size 4096
+    #       --threads 4
+    #       --n-gpu-layers 999
+    #       --batch-size 512
+    #       --ubatch-size 128
+    #       --temp 0.7
+    #       --top-p 1
+    #       --n-predict 512
+    #       --flash-attn off
+
+    crawl4ai:
+        image: python:3.11-slim
+        container_name: crawl4ai
+        depends_on:
+            - llama
+        working_dir: /app
+        volumes:
+            - ./app:/app
+        command: >
+            bash -c "
+              pip install --no-cache-dir crawl4ai openai &&
+              python main.py
+            "
+        environment:
+            - OPENAI_BASE_URL=http://192.168.1.99:8080/v1
+            - OPENAI_API_KEY=dummy

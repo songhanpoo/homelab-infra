@@ -1,0 +1,14 @@
+---
+redis_port: 6379
+redis_bind_address: "127.0.0.1" # Change to "0.0.0.0" only if remote systems need direct access
+redis_password: "ChangeMeToSomethingSecure123!"
+
+# Performance and Limits
+redis_maxmemory: "512mb"
+redis_maxmemory_policy: "allkeys-lru"
+
+# Persistence defaults
+redis_save_rules:
+  - "900 1"   # Save after 900s if 1 key changed
+  - "300 10"  # Save after 300s if 10 keys changed
+  - "60 10000" # Save after 60s if 10,000 keys changed

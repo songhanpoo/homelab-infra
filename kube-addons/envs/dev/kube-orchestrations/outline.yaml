@@ -1,0 +1,39 @@
+# outline:
+#   name: "outline"
+#   repository: "https://community-charts.github.io/helm-charts"
+#   chart: "outline"
+#   namespace: "kube-orchestrations"
+#   values_yaml:
+#     web:
+#       forceHttps: false
+#       skipSSLVerification: true
+#     # External PostgreSQL
+#     externalPostgresql:
+#       host: "192.168.1.120"
+#       port: 5432
+#       username: "postgres"
+#       database: "outline"
+#       password: "kicker-dane-cawing-flipper"
+#     # External Redis
+#     externalRedis:
+#       host: "192.168.1.110"
+#       port: 6379
+#       username: "outline"
+#       password: "marjorie-suzie-massa-seemed"
+#     # Local file storage
+#     fileStorage:
+#       mode: "local"
+#       local:
+#         persistence:
+#           enabled: true
+#           size: "8Gi"
+#           storageClass: "nfs-csi"
+#     # Ingress
+#     ingress:
+#       enabled: true
+#       className: "nginx-internal"
+#       hosts:
+#         - host: "outline.localdev.me"
+#           paths:
+#             - path: "/"
+#               pathType: "ImplementationSpecific"

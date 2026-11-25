@@ -1,0 +1,22 @@
+harness_delegate:
+  name: "harness-delegate"
+  repository: "https://app.harness.io/storage/harness-download/delegate-helm-chart/"
+  chart: "harness-delegate-ng"
+  version: "1.0.32"
+  namespace: "kube-orchestrations"
+  values_yaml:
+    accountId: "LzGbvkVKS72VH3cLnnJmSA"
+    delegateToken: "MzEwY2ZjZjQ1YTNiNTU3NGFiZDFjOWQ1OGYzMDQyMjc="
+    delegateName: "harness-delegate"
+    managerEndpoint: "https://app.harness.io/gratis"
+    delegateDockerImage: "nexus-docker.local.proxy/harness/delegate:26.10.90200"
+    replicas: 1
+    upgrader:
+      enabled: true
+    resources:
+      requests:
+        cpu: "1"
+        memory: "1536Mi"
+      limits:
+        cpu: "1"
+        memory: "2Gi"

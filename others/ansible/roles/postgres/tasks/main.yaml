@@ -1,0 +1,69 @@
+---
+- name: Ensure prerequisite packages are installed
+  apt:
+    name:
+      - curl
+      - ca-certificates
+      - gnupg
+      - python3-psycopg2
+    state: present
+    update_cache: true
+
+- name: Create directory for PGDG signing key
+  file:
+    path: /usr/share/postgresql-common/pgdg
+    state: directory
+    mode: '0755'
+
+- name: Download PostgreSQL GPG signing key
+  get_url:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    dest: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+    mode: '0644'
+
+- name: Add PostgreSQL official APT repository
+  apt_repository:
+    repo: "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+    filename: pgdg
+    state: present
+    update_cache: true
+
+- name: Install PostgreSQL 18 Server and Client tools
+  apt:
+    name:
+      - "postgresql-{{ postgresql_version }}"
+      - "postgresql-client-{{ postgresql_version }}"
+    state: present
+
+- name: Deploy postgresql.conf from template
+  template:
+    src: postgresql.conf.j2
+    dest: "/etc/postgresql/{{ postgresql_version }}/main/postgresql.conf"
+    owner: postgres
+    group: postgres
+    mode: '0644'
+  notify: Restart PostgreSQL
+
+- name: Deploy pg_hba.conf from template
+  template:
+    src: pg_hba.conf.j2
+    dest: "/etc/postgresql/{{ postgresql_version }}/main/pg_hba.conf"
+    owner: postgres
+    group: postgres
+    mode: '0640'
+  notify: Restart PostgreSQL
+
+- name: Ensure PostgreSQL service is started and enabled
+  systemd:
+    name: postgresql
+    state: started
+    enabled: true
+
+- name: Verify active PostgreSQL clusters
+  command: pg_lsclusters
+  register: pg_clusters
+  changed_when: false
+
+- name: Display running PostgreSQL status
+  debug:
+    var: pg_clusters.stdout_lines

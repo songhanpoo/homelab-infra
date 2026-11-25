@@ -1,0 +1,21 @@
+cloudflared:
+  name: "cloudflared"
+  repository: "https://community-charts.github.io/helm-charts"
+  chart: "cloudflared"
+  namespace: "kube-orchestrations"
+  values_yaml:
+    replica:
+      allNodes: false
+      count: 1
+    tunnelConfig:
+      name: "Paul CloudFlared Tunnel"
+      logLevel: "info"
+    tunnelSecrets:
+      # Use base64 -b 0 -i ~/.cloudflared/*.json to generate these
+      base64EncodedConfigJsonFile: "eyJBY2NvdW50VGFnIjoiZmUwMDRjYTFiYjY4YzEyMWE5NWFiZGU0OTIzY2FhNjYiLCJUdW5uZWxTZWNyZXQiOiJhdVlsaGJKaWNUM1A2ZWxaZlFZMUJPR3ZXdksxNExPUHBWTjRxY0EwSGdNPSIsIlR1bm5lbElEIjoiOWI2MzMzNTItY2E3Zi00MDkxLTg3ZjktY2Y2NmYyYWFmNTdiIiwiRW5kcG9pbnQiOiIifQ=="
+      base64EncodedPemFile: "LS0tLS1CRUdJTiBBUkdPIFRVTk5FTCBUT0tFTi0tLS0tCmV5SjZiMjVsU1VRaU9pSTRNemhsWXpJelptUXdPVFV6WkdGaU1HTTVZalEwTnpVNFltTXhNR1UwWVNJc0ltRmoKWTI5MWJuUkpSQ0k2SW1abE1EQTBZMkV4WW1JMk9HTXhNakZoT1RWaFltUmxORGt5TTJOaFlUWTJJaXdpWVhCcApWRzlyWlc0aU9pSmpablYwWDBoVloycFlTRWxqTlVKMFVGSTFVVFpKY0VOVlZGRkxVV1JNWjA1c01UQndWM1JLClRrVklkRW94WmpRME5XRmlNQ0o5Ci0tLS0tRU5EIEFSR08gVFVOTkVMIFRPS0VOLS0tLS0K"
+    ingress:
+      # Example rule: proxy traffic from Cloudflare into the cluster's internal readest service
+      - hostname: "stump.booo.dev"
+        service: "http://stump.kube-orchestrations.svc.cluster.local:10801"
+      - service: "http_status:404"

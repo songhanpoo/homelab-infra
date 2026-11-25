@@ -1,0 +1,203 @@
+# Parked: Airflow replaced by Kestra. Uncomment the whole file to re-enable.
+# airflow:
+#   name: "airflow"
+#   chart: "./charts/airflow"
+#   # chart: "airflow"
+#   # repository: "https://airflow.apache.org/"
+#   namespace: "kube-orchestrations"
+#   version: "1.20.0"
+#   values_yaml:
+#     # Airflow image
+#     defaultAirflowRepository: "nexus-docker.local.proxy/apache/airflow"
+#     # images:
+#     #   # If your GitSync image is fetched from Docker Hub, override it as well:
+#     #   gitSync:
+#     #     repository: "registry.k8s.io/git-sync/git-sync"
+#     #     tag: "v4.4.0"
+#
+#     # Executor: KubernetesExecutor (lighter footprint, no Celery/Redis needed for dev)
+#     executor: "KubernetesExecutor"
+#     webserverSecretKeySecretName: "airflow-webserver-secret"
+#     jwtSecretName: "airflow-jwt-secret-tf"
+#     # ──────────────────────────────────────────────
+#     # Webserver
+#     # ──────────────────────────────────────────────
+#     webserver:
+#       replicas: 1
+#       resources:
+#         requests:
+#           cpu: 500m
+#           memory: 1Gi
+#         limits:
+#           cpu: 1
+#           memory: 2Gi
+#       service:
+#         type: ClusterIP
+#
+#     # ──────────────────────────────────────────────
+#     # Scheduler
+#     # ──────────────────────────────────────────────
+#     scheduler:
+#       replicas: 1
+#       resources:
+#         requests:
+#           cpu: 500m
+#           memory: 1Gi
+#         limits:
+#           cpu: 1
+#           memory: 2Gi
+#     # ──────────────────────────────────────────────
+#     # Triggerer (for deferrable operators)
+#     # ──────────────────────────────────────────────
+#     triggerer:
+#       enabled: true
+#       replicas: 1
+#       resources:
+#         requests:
+#           cpu: 100m
+#           memory: 256Mi
+#         limits:
+#           cpu: 500m
+#           memory: 512Mi
+#
+#     # ──────────────────────────────────────────────
+#     # Workers (not used with KubernetesExecutor, but kept for reference)
+#     # ──────────────────────────────────────────────
+#     workers:
+#       replicas: 1
+#       resources:
+#         requests:
+#           cpu: 500m
+#           memory: 1Gi
+#         limits:
+#           cpu: 2
+#           memory: 4Gi
+#       persistence:
+#         enabled: true
+#         storageClassName: "nfs-csi"
+#         size: 10Gi
+#
+#     # ──────────────────────────────────────────────
+#     # External PostgreSQL (disable built-in, use same DB server as other services)
+#     # ──────────────────────────────────────────────
+#     postgresql:
+#       enabled: false
+#     data:
+#       metadataConnection:
+#         # user: airflow_owner_user
+#         # pass: OwnerP@ss18_!
+#         user: postgres
+#         pass: wh0lov3me
+#         protocol: postgresql
+#         host: "192.168.1.120"
+#         port: 5432
+#         db: airflow_production_db
+#
+#     # ──────────────────────────────────────────────
+#     # Redis (not needed for KubernetesExecutor)
+#     # ──────────────────────────────────────────────
+#     redis:
+#       enabled: false
+#
+#     # ──────────────────────────────────────────────
+#     # DAG synchronization via Git-Sync (SSH using jenkins-credentials)
+#     # ──────────────────────────────────────────────
+#     dags:
+#       persistence:
+#         enabled: true
+#         size: 5Gi
+#         storageClassName: "nfs-csi"
+#         accessMode: ReadWriteMany
+#       gitSync:
+#         enabled: true
+#         repo: "git@github.com:songhanpoo/airflow-dags.git"
+#         branch: feature/uplift_dags
+#         subPath: "jobs"
+#         wait: 120
+#         sshKeySecret: git-ssh-key
+#         knownHosts: |
+#           github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+#     # ──────────────────────────────────────────────
+#     # Logs
+#     # ──────────────────────────────────────────────
+#     logs:
+#       persistence:
+#         enabled: true
+#         size: 5Gi
+#         storageClassName: "nfs-csi"
+#
+#     # ──────────────────────────────────────────────
+#     # Ingress
+#     # ──────────────────────────────────────────────
+#     ingress:
+#       enabled: true
+#       web:
+#         enabled: true
+#         ingressClassName: "nginx-internal"
+#         hosts:
+#           - name: "airflow.localdev.me"
+#             tls:
+#               enabled: false
+#         path: "/"
+#         pathType: "ImplementationSpecific"
+#       apiServer:
+#         enabled: true
+#         ingressClassName: "nginx-internal"
+#         hosts:
+#           - name: "airflow.localdev.me"
+#             tls:
+#               enabled: false
+#         path: "/"
+#         pathType: "ImplementationSpecific"
+#
+#     # ──────────────────────────────────────────────
+#     # Airflow configuration overrides
+#     # ──────────────────────────────────────────────
+#     extraEnv: |
+#       - name: AIRFLOW__CORE__LOAD_EXAMPLES
+#         value: "False"
+#       - name: AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION
+#         value: "True"
+#       - name: AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG
+#         value: "16"
+#       - name: AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL
+#         value: "30"
+#       - name: AIRFLOW__WEBSERVER__EXPOSE_CONFIG
+#         value: "False"
+#       - name: AIRFLOW__WEBSERVER__RBAC
+#         value: "True"
+#       - name: AIRFLOW__API__AUTH_BACKENDS
+#         value: "airflow.api.auth.backend.basic_auth"
+#
+#     # ──────────────────────────────────────────────
+#     # ServiceAccount
+#     # ──────────────────────────────────────────────
+#     serviceAccount:
+#       create: true
+#       name: airflow
+#
+#     # ──────────────────────────────────────────────
+#     # Flower (Celery monitoring – disabled, not using CeleryExecutor)
+#     # ──────────────────────────────────────────────
+#     flower:
+#       enabled: false
+#
+#     # ──────────────────────────────────────────────
+#     # Metrics / StatsD (disabled for dev)
+#     # ──────────────────────────────────────────────
+#     statsd:
+#       enabled: false
+#
+#     # ──────────────────────────────────────────────
+#     # PgBouncer (disabled for dev)
+#     # ──────────────────────────────────────────────
+#     pgbouncer:
+#       enabled: false
+#
+#     # ──────────────────────────────────────────────
+#     # Pod security
+#     # ──────────────────────────────────────────────
+#     securityContext:
+#       runAsUser: 50000
+#       fsGroup: 0
+#

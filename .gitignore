@@ -1,0 +1,9 @@
+.DS_Store
+.wrangler/
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+**/kubeconfig*.yaml
+**/kubeconfig*.bak
+**/.secrets.local.txt

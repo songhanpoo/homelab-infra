@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "thinkread.fullname" . }}
+  labels:
+    {{- include "thinkread.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "200m"
+spec:
+  {{- if .Values.controller.ingress.ingressClassName }}
+  ingressClassName: {{ .Values.controller.ingress.ingressClassName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.controller.ingress.hostName }}
+      http:
+        paths:
+          - path: {{ .Values.controller.ingress.path | default "/" }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "thinkread.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}

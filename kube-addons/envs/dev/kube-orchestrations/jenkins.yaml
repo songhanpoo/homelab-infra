@@ -1,0 +1,360 @@
+# jenkins:
+#   name: "jenkins"
+#   namespace: "kube-orchestrations"
+#   chart: "jenkins"
+#   repository: "https://charts.jenkins.io"
+#   version: "5.9.12"
+#   values_yaml:
+#     controller:
+#       image:
+#         registry: "nexus-docker.local.proxy"
+#       sidecars:
+#         configAutoReload:
+#           image:
+#             registry: "nexus-docker.local.proxy"
+#             repository: kiwigrid/k8s-sidecar
+#       jenkinsAdminEmail: songhanpoo@gmail.com
+#       javaOpts: "-Dpermissive-script-security.enabled=no_security -Djenkins.security.scripts.ScriptApproval=false"
+#       admin:
+#         username: "admin"
+#         password: "admin"
+#       ingress:
+#         enabled: true
+#         ingressClassName: "nginx-internal"
+#         hostName: "jenkins.localdev.me"
+#         path: "/"
+#       existingSecret: "jenkins-credentials"
+#       scriptApproval:
+#         - "method groovy.lang.GroovyObject invokeMethod java.lang.String java.lang.Object"
+#         - "method org.jenkinsci.plugins.workflow.support.actions.EnvironmentAction getEnvironment"
+#       initScripts:
+#         auto_approval: |
+#           println "Continuous script auto-approval enabled"
+#           import org.jenkinsci.plugins.scriptsecurity.scripts.ScriptApproval
+#           def sa = ScriptApproval.get()
+#           sa.pendingSignatures.each {
+#               sa.approveSignature(it)
+#           }
+#           sa.pendingScripts.each {
+#               sa.approveScript(it.hash)
+#           }
+#       # known_hosts.sh: >-
+#       #   def process = ["ssh-keyscan", "github.com"].execute()
+#       #   process.waitFor()
+#       #   def output = process.text
+#       #   def file = new File("/var/jenkins_home/.ssh/known_hosts")
+#       #   file.parentFile.mkdirs()
+#       #   if (!file.exists() || !file.text.contains("github.com")) {
+#       #       file << output
+#       #       println("Added github.com via ssh-keyscan")
+#       #   } else {
+#       #       println("github.com already exists")
+#       #   }
+#       JCasC:
+#         authorizationStrategy: |-
+#           loggedInUsersCanDoAnything:
+#             allowAnonymousRead: true
+#         configScripts:
+#           core: |-
+#             jenkins:
+#               systemMessage: Welcome to our CI\CD server. This Jenkins is configured and managed 'as code'.
+#             credentials:
+#               system:
+#                 domainCredentials:
+#                   - credentials:
+#                       - usernamePassword:
+#                           scope: GLOBAL
+#                           id: "github-token"
+#                           username: "songhanpoo"
+#                           password: "${GITHUB_TOKEN}"
+#                       - basicSSHUserPrivateKey:
+#                           id: "github-private"
+#                           username: "songhanpoo"
+#                           description: "SSH key for Git access"
+#                           privateKeySource:
+#                             directEntry:
+#                               privateKey: "${GITHUB_PRIVATE_KEY}"
+#             security:
+#               globalJobDslSecurityConfiguration:
+#                 useScriptSecurity: false
+#               gitHostKeyVerificationConfiguration:
+#                 sshHostKeyVerificationStrategy:
+#                   manuallyProvidedKeyVerificationStrategy:
+#                     approvedHostKeys: github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+#             jobs:
+#               - script: >
+#                   job('bootstrap') {
+#                     scm {
+#                       git {
+#                         remote {
+#                           url('git@github.com:songhanpoo/jenkins-inventory.git')
+#                           credentials('github-private')
+#                         }
+#                         branches('*/master')
+#                       }
+#                     }
+#                     steps {
+#                       jobDsl {
+#                         targets('jobs/**/*.groovy')
+#                         additionalClasspath('.')
+#                         sandbox(false)
+#                       }
+#                     }
+#                   }
+#             unclassified:
+#               globalLibraries:
+#                 libraries:
+#                   - name: "awesome-lib"
+#                     retriever:
+#                       modernSCM:
+#                         scm:
+#                           gitSource:
+#                             remote: "https://github.com/jenkins-infra/pipeline-library.git"
+#           # templateGlobalConfig:
+#           #   tier:
+#           #     configurationProvider:
+#           #       scm:
+#           #         baseDir: "templates/ci"
+#           #         scm:
+#           #           scmGit:
+#           #             branches:
+#           #             - name: "*/master"
+#           #             buildChooser: "default"
+#           #             userRemoteConfigs:
+#           #             - credentialsId: "github-private"
+#           #               url: "git@github.com:songhanpoo/jenkins-inventory.git"
+#           #     librarySources:
+#           #     - libraryProvider:
+#           #         scm:
+#           #           baseDir: "libraries"
+#           #           scm:
+#           #             scmGit:
+#           #               branches:
+#           #               - name: "*/master"
+#           #               buildChooser: "default"
+#           #               userRemoteConfigs:
+#           #               - credentialsId: "github-private"
+#           #                 url: "git@github.com:songhanpoo/jenkins-inventory.git"
+#       installPlugins:
+#         - antisamy-markup-formatter:173.v680e3a_b_69ff3
+#         - apache-httpcomponents-client-4-api:4.5.14-269.vfa_2321039a_83
+#         - asm-api:9.9.1-189.vb_5ef2964da_91
+#         - authentication-tokens:1.144.v5ff4a_5ec5c33
+#         - blueocean-commons:1.27.25
+#         - blueocean-pipeline-scm-api:1.27.25
+#         - blueocean-rest:1.27.25
+#         - bootstrap5-api:5.3.8-895.v4d0d8e47fea_d
+#         - bouncycastle-api:2.30.1.83-289.v8426fcd19371
+#         - branch-api:2.1280.v0d4e5b_b_460ef
+#         - caffeine-api:3.2.3-194.v31a_b_f7a_b_5a_81
+#         - checks-api:402.vca_263b_f200e3
+#         - cloudbees-folder:6.1079.vc0975c2de294
+#         - commons-lang3-api:3.20.0-109.ve43756e2d2b_4
+#         - commons-text-api:1.15.0-218.va_61573470393
+#         - config-file-provider:1006.vc7366c201f57
+#         - configuration-as-code:2065.v7a_20a_b_d84088
+#         - credentials:1502.v5c95e620ddfe
+#         - credentials-binding:719.v80e905ef14eb_
+#         - display-url-api:2.217.va_6b_de84cc74b_
+#         - durable-task:664.v2b_e7a_dfff66c
+#         - echarts-api:6.0.0-1247.vf3e35a_c1813f
+#         - eddsa-api:0.3.0.1-29.v67e9a_1c969b_b_
+#         - folder-properties:62.v1636b_4a_84608
+#         - font-awesome-api:7.2.0-965.ve3840b_696418
+#         - git:5.10.1
+#         - git-client:6.6.0
+#         - git-push:34.vd474e0fe7b_ec
+#         - git-server:137.ve0060b_432302
+#         - github:1.46.0
+#         - github-api:1.330-492.v3941a_032db_2a_
+#         - github-branch-source:1967.vdea_d580c1a_b_a_
+#         - github-oauth:685.v53b_070455063
+#         - groovy:537.v741a_5a_f1b_581
+#         - gson-api:2.13.2-173.va_a_092315913c
+#         - instance-identity:203.v15e81a_1b_7a_38
+#         - ionicons-api:94.vcc3065403257
+#         - jackson2-api:2.21.2-433.v6d50b_92cfe52
+#         - jackson3-api:3.1.1-68.v2a_4b_025ea_657
+#         - jakarta-activation-api:2.1.4-1
+#         - jakarta-mail-api:2.1.5-1
+#         - jakarta-xml-bind-api:4.0.6-12.vb_1833c1231d3
+#         - javax-activation-api:1.2.0-8
+#         - javax-mail-api:1.6.2-11
+#         - jaxb:2.3.9-143.v5979df3304e6
+#         - jjwt-api:0.11.5-120.v0268cf544b_89
+#         - job-dsl:3654.vdf58f53e2d15
+#         - joda-time-api:2.14.1-187.vdf2def02b_8a_1
+#         - jquery3-api:3.7.1-619.vdb_10e002501a_
+#         - json-api:20251224-185.v0cc18490c62c
+#         - json-path-api:3.0.0-218.vcd4dd1355de2
+#         - junit:1403.vd9d1413fd205
+#         - kubernetes:4423.vb_59f230b_ce53
+#         - kubernetes-client-api:7.3.1-256.v788a_0b_787114
+#         - kubernetes-credentials:207.v492f58828b_ed
+#         - mailer:534.v1b_36f5864073
+#         - mask-passwords:212.v4967a_a_73b_506
+#         - matrix-auth:3.2.9
+#         - matrix-project:870.v9db_fcfc2f45b_
+#         - metrics:4.2.37-494.v06f9a_939d33a_
+#         - mina-sshd-api-common:2.16.0-167.va_269f38cc024
+#         - mina-sshd-api-core:2.16.0-167.va_269f38cc024
+#         - multiple-scms:0.8
+#         - okhttp-api:5.3.2-200.vedb_720a_cf1f8
+#         - pipeline-build-step:584.vdb_a_2cc3a_d07a_
+#         - pipeline-github-lib:65.v203688e7727e
+#         - pipeline-graph-analysis:254.v0f63a_a_447dca_
+#         - pipeline-graph-view:819.ved496c19e082
+#         - pipeline-groovy-lib:787.ve2fef0efdca_6
+#         - pipeline-input-step:551.vdff487c5998c
+#         - pipeline-milestone-step:152.v6e22b_8cfc66c
+#         - pipeline-model-api:2.2277.v00573e73ddf1
+#         - pipeline-model-definition:2.2277.v00573e73ddf1
+#         - pipeline-model-extensions:2.2277.v00573e73ddf1
+#         - pipeline-rest-api:2.39
+#         - pipeline-stage-step:345.va_96187909426
+#         - pipeline-stage-tags-metadata:2.2277.v00573e73ddf1
+#         - plain-credentials:199.v9f8e1f741799
+#         - plugin-util-api:6.1192.v30fe6e2837ff
+#         - prism-api:1.30.0-717.vb_f8360844b_53
+#         - pubsub-light:1.19
+#         - rebuild:338.va_0a_b_50e29397
+#         - run-condition:276.v97298f3a_cd51
+#         - scm-api:728.vc30dcf7a_0df5
+#         - scm-filter-branch-pr:264.v39ce4f34d572
+#         - script-security:1399.ve6a_66547f6e1
+#         - snakeyaml-api:2.5-149.v72471e9c6371
+#         - snakeyaml-engine-api:3.0.1-5.vd98ea_ff3b_92e
+#         - ssh-credentials:372.va_250881b_08cd
+#         - ssh-slaves:3.1097.v868116049892
+#         - sshd:3.384.vc89b_5e138cf9
+#         - structs:362.va_b_695ef4fdf9
+#         - templating-engine:2.5.5
+#         - token-macro:477.vd4f0dc3cb_cf1
+#         - trilead-api:2.284.v1974ea_324382
+#         - variant:70.va_d9f17f859e0
+#         - woodstox-core-api:7.1.1-1.v4d297985f397
+#         - workflow-aggregator:608.v67378e9d3db_1
+#         - workflow-api:1413.v2ff1a_5e720fa_
+#         - workflow-basic-steps:1098.v808b_fd7f8cf4
+#         - workflow-cps:4275.vb_0565eb_a_3d36
+#         - workflow-cps-global-lib:615.vb_b_0664a_b_19f3
+#         - workflow-durable-task-step:1475.ved562f6ec8b_3
+#         - workflow-job:1571.vb_423c255d6d9
+#         - workflow-multibranch:821.vc3b_4ea_780798
+#         - workflow-scm-step:466.va_d69e602552b_
+#         - workflow-step-api:724.v538c2362b_dfb_
+#         - workflow-support:1015.v785e5a_b_b_8b_22
+#         - terraform:1.0.10
+#         - ansicolor:536.v13fa_b_860c267
+#     persistence:
+#       storageClass: "nfs-csi"
+#     agent:
+#       enabled: true
+#       jenkinsUrl: "http://jenkins.kube-orchestrations.svc.cluster.local:8080"
+#       jnlpregistry: "nexus-docker.local.proxy"
+#       showRawYaml: false
+#       podRetention: "Always"
+#       alwaysPullImage: false
+#       websocket: true
+#       waitForPodSec: 600
+#       connectTimeout: 10000
+#       resources:
+#         requests:
+#           cpu: "1024m"
+#           memory: "1024Mi"
+#           # ephemeralStorage:
+#         limits:
+#           cpu: "1536m"
+#           memory: "1536Mi"
+#       image:
+#         registry: "nexus-docker.local.proxy"
+#       volumes:
+#         - type: Secret
+#           secretName: nexus-docker-registries
+#           mountPath: /var/run/secrets/nexus
+#     additionalAgents:
+#       alpine:
+#         podName: alpine-3-22-4
+#         customJenkinsLabels: alpine
+#         sideContainerName: alpine
+#         image:
+#           registry: "nexus-docker.local.proxy"
+#           repository: "library/alpine"
+#           tag: "3.22.4"
+#         command: "/bin/sh -c"
+#         args: "cat"
+#         TTYEnabled: true
+#       python:
+#         podName: python-311
+#         customJenkinsLabels: python
+#         sideContainerName: python
+#         image:
+#           registry: "nexus-docker.local.proxy"
+#           repository: "library/python"
+#           tag: "3.11-alpine3.22"
+#         command: "/bin/sh -c"
+#         args: "cat"
+#         TTYEnabled: true
+#       npm:
+#         podName: node-22
+#         customJenkinsLabels: node
+#         sideContainerName: node
+#         image:
+#           registry: "nexus-docker.local.proxy"
+#           repository: "library/node"
+#           tag: "22-alpine"
+#         command: "/bin/sh -c"
+#         args: "cat"
+#         TTYEnabled: true
+#         resources:
+#           requests:
+#             cpu: "500m"
+#             memory: "1Gi"
+#           limits:
+#             cpu: "2"
+#             memory: "4Gi"
+#       kaniko:
+#         podName: kaniko
+#         customJenkinsLabels: kaniko
+#         sideContainerName: kaniko
+#         image:
+#           registry: "nexus-docker.local.proxy"
+#           registry: "gcr.io"
+#           repository: "kaniko-project/executor"
+#           tag: "debug"
+#         command: "/bin/sh -c"
+#         args: "/busybox/cat"
+#         TTYEnabled: true
+#         resources:
+#           requests:
+#             cpu: "500m"
+#             memory: "1Gi"
+#           limits:
+#             cpu: "2"
+#             memory: "4Gi"
+#         volumes:
+#           - type: Secret
+#             secretName: nexus-docker-registries
+#             mountPath: /var/run/secrets/nexus
+#       trivy:
+#         podName: trivy
+#         customJenkinsLabels: trivy
+#         sideContainerName: trivy
+#         image:
+#           registry: "nexus-docker.local.proxy"
+#           repository: "aquasec/trivy"
+#           tag: "0.69.3"
+#         command: "/bin/sh -c"
+#         args: "cat"
+#         TTYEnabled: true
+#       helm:
+#         podName: helm
+#         customJenkinsLabels: helm
+#         sideContainerName: helm
+#         image:
+#           registry: "nexus-docker.local.proxy"
+#           repository: "alpine/helm"
+#           tag: "latest"
+#         command: "/bin/sh -c"
+#         args: "cat"
+#         TTYEnabled: true

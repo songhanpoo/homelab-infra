@@ -1,0 +1,12 @@
+---
+- name: Deploy Database Nodes (Postgres)
+  hosts: postgres
+  become: true
+  roles:
+    - postgres
+
+- name: Deploy Cache Nodes (Redis)
+  hosts: redis
+  become: true
+  roles:
+    - redis

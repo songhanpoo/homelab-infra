@@ -1,0 +1,79 @@
+traefik:
+  version: "v3.6"
+  k8s_ingress_url: "http://192.168.1.130:32172"
+  enable: true
+  http:
+    # middlewares:
+    #   readest-auth:
+    #     basicAuth:
+    #       users: "admin:$apr1$fG8.lT2Q$1g.b3463q2p64R7gP1c.21"
+    routers:
+      nas:
+        rule: "Host(`nas.localdev.me`)"
+        entrypoints: websecure
+        service: nas
+        tls: true
+        # middlewares: dashboard-auth@docker
+      # cockpit:
+      #   rule: "Host(`cockpit.localdev.me`)"
+      #   entrypoints: websecure
+      #   service: cockpit
+      #   tls: true
+      dashboard:
+        rule: "Host(`traefik.localdev.me`)"
+        entrypoints: websecure
+        service: api@internal
+        tls: true
+        priority: 100
+        # middlewares: dashboard-auth@docker
+      eks:
+        rule: "HostRegexp(`.*.localdev.me`)"
+        entrypoints: websecure
+        service: eks
+        tls: true
+        priority: 1
+      flaresolverr:
+        rule: "Host(`flaresolverr.localdev.me`)"
+        entrypoints: websecure
+        service: flaresolverr
+        tls: true
+      nexus:
+        rule: "Host(`nexus.local.proxy`)"
+        entrypoints: websecure
+        service: nexus
+        tls: true
+      nexus-docker:
+        rule: "Host(`nexus-docker.local.proxy`)"
+        entrypoints: websecure
+        service: nexus-docker
+        tls: true
+      nexus-docker-private:
+        rule: "Host(`nexus-docker-private.local.proxy`)"
+        entrypoints: websecure
+        service: nexus-docker-private
+        tls: true
+    services:
+      eks:
+        loadbalancer:
+          server:
+            url: http://192.168.1.130:32172
+      flaresolverr:
+        loadbalancer:
+          server:
+            url: http://192.168.1.130:32172
+      nexus:
+        loadbalancer:
+          server:
+            url: http://192.168.1.130:32172
+      nexus-docker:
+        loadbalancer:
+          server:
+            url: http://192.168.1.130:32172
+      nexus-docker-private:
+        loadbalancer:
+          server:
+            url: http://192.168.1.130:32172
+      nas:
+        loadbalancer:
+          server:
+            url: http://192.168.1.17:5000

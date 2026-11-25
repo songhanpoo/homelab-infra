@@ -1,0 +1,22 @@
+---
+postgresql_version: "18"
+postgresql_port: 5432
+postgresql_listen_addresses: "*"
+postgresql_max_connections: 100
+
+# Add these paths (this is where Ubuntu places the default cluster)
+postgresql_data_directory: "/var/lib/postgresql/18/main"
+postgresql_hba_file: "/etc/postgresql/18/main/pg_hba.conf"
+postgresql_ident_file: "/etc/postgresql/18/main/pg_ident.conf"
+postgresql_external_pid_file: "/var/run/postgresql/18-main.pid"
+
+# --- SCALED DOWN FOR VM USE ---
+postgresql_shared_buffers: "512MB"       # Scaled down from 4GB (safe for 2GB+ RAM VMs)
+postgresql_effective_cache_size: "1536MB" # Scaled down from 12GB
+postgresql_maintenance_work_mem: "128MB"  # Scaled down from 1GB
+postgresql_work_mem: "16MB"               # Scaled down from 64MB
+postgresql_min_wal_size: "512MB"          # Scaled down from 1GB
+postgresql_max_wal_size: "2GB"            # Scaled down from 4GB
+
+postgresql_hba_rules:
+  - { database: "all", user: "all", address: "192.168.1.0/24", method: "md5" }

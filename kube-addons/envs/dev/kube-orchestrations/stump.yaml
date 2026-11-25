@@ -1,0 +1,26 @@
+# stump:
+#   name: "stump"
+#   chart: "./charts/stump"
+#   version: "0.1.0"
+#   namespace: "kube-orchestrations"
+#   values_yaml:
+#     ingress:
+#       enabled: true
+#       className: "nginx-internal"
+#       hosts:
+#         - host: "stump.localdev.me"
+#           paths:
+#             - path: "/"
+#               pathType: "Prefix"
+#     image:
+#       repository: "nexus-docker.local.proxy/aaronleopold/stump"
+#       tag: "latest"
+#     persistence:
+#       config:
+#         enabled: true
+#         storageClass: "nfs-csi"
+#         size: "1Gi"
+#       data:
+#         enabled: true
+#         storageClass: "nfs-csi" # Change to your StorageClass (e.g. longhorn, local-path)
+#         size: "200Gi"

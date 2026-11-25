@@ -1,0 +1,18 @@
+# ====================================================================
+# PostgreSQL {{ postgresql_version }} Access Rules (Managed via Ansible Role)
+# ====================================================================
+# TYPE  DATABASE        USER            ADDRESS                 METHOD
+
+# Local Unix Domain Socket
+local   all             all                                     trust
+
+# IPv4 Localhost Loopback
+host    all             all             127.0.0.1/32            scram-sha-256
+
+# IPv6 Localhost Loopback
+host    all             all             ::1/128                 scram-sha-256
+
+# --- Dynamic Client Access Subnets ---
+{% for rule in postgresql_hba_rules %}
+host    {{ rule.database }}    {{ rule.user }}    {{ rule.address }}    {{ rule.method }}
+{% endfor %}

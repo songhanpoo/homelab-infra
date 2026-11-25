@@ -1,0 +1,151 @@
+nexus:
+  name: "nexus"
+  repository: "https://stevehipwell.github.io/helm-charts/"
+  chart: "nexus3"
+  version: "5.27.0"
+  namespace: "kube-orchestrations"
+  values_yaml:
+    persistence:
+      enabled: true
+      storageClass: nfs-csi
+      size: 30Gi
+    service:
+      additionalPorts:
+        - port: 8082
+          name: dkr-proxy-http
+          containerPort: 8082
+          hosts:
+            - nexus-docker.local.proxy
+        - port: 8083
+          name: dkr-proxy-https
+          containerPort: 8083
+        - port: 8084
+          name: dkr-priv-http
+          containerPort: 8084
+          hosts:
+            - nexus-docker-private.local.proxy
+        - port: 8085
+          name: dkr-priv-https
+          containerPort: 8085
+    ingress:
+      enabled: true
+      annotations:
+        nginx.ingress.kubernetes.io/proxy-body-size: "0"
+        # nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+        # nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+      ingressClassName: nginx-internal
+      hosts:
+        - nexus.local.proxy
+    rootPassword:
+      secret: nexus-secret
+      key: nexus-root-password
+    config:
+      enabled: true
+      anonymous:
+        enabled: true
+      realms:
+        enabled: true
+        values:
+          - NexusAuthenticatingRealm
+          - DockerToken
+      cleanup:
+        - name: CleanupAll
+          notes: "Cleanup content that hasn't been updated in 14 days downloaded in 28 days."
+          format: ALL_FORMATS
+          mode: delete
+          criteria:
+            isPrerelease:
+            lastBlobUpdated: "1209600"
+            lastDownloaded: "2419200"
+      repos:
+        - name: pip-cache
+          format: pypi
+          type: proxy
+          online: true
+          negativeCache:
+            enabled: true
+            timeToLive: 1440
+          proxy:
+            remoteUrl: https://pypi.org
+            metadataMaxAge: 1440
+            contentMaxAge: 1440
+          httpClient:
+            blocked: false
+            autoBlock: true
+            connection:
+            retries: 0
+            useTrustStore: false
+          storage:
+            blobStoreName: default
+            strictContentTypeValidation: false
+          cleanup:
+            policyNames:
+              - CleanupAll
+        # - name: npm-proxy
+        #   format: pypi
+        #   type: proxy
+        #   online: true
+        #   negativeCache:
+        #     enabled: true
+        #     timeToLive: 1440
+        #   proxy:
+        #     remoteUrl: https://registry.npmjs.org
+        #     metadataMaxAge: 1440
+        #     contentMaxAge: 1440
+        #   httpClient:
+        #     blocked: false
+        #     autoBlock: true
+        #     connection:
+        #     retries: 0
+        #     useTrustStore: false
+        #   storage:
+        #     blobStoreName: default
+        #     strictContentTypeValidation: false
+        #   cleanup:
+        #     policyNames:
+        #       - CleanupAll
+        # docker-private must precede docker-proxy: it frees 8083 (now its old httpPort) before proxy claims it as httpsPort.
+        - name: docker-private
+          format: docker
+          type: hosted
+          online: true
+          storage:
+            blobStoreName: default
+            strictContentTypeValidation: false
+            writePolicy: ALLOW # Usually recommended for Docker hosted (prevents overwriting image tags)
+          docker:
+            v1Enabled: false
+            forceBasicAuth: false # Set to true if you don't want anonymous pulls
+            httpPort: 8084
+            httpsPort: 8085
+        - name: docker-proxy
+          format: docker
+          type: proxy
+          online: true
+          negativeCache:
+            enabled: true
+            timeToLive: 1440
+          proxy:
+            remoteUrl: https://registry-1.docker.io
+            metadataMaxAge: 1440
+            contentMaxAge: 1440
+          httpClient:
+            blocked: false
+            autoBlock: true
+            connection:
+            retries: 0
+            useTrustStore: false
+          storage:
+            blobStoreName: default
+            strictContentTypeValidation: false
+          cleanup:
+            policyNames:
+              - CleanupAll
+          docker:
+            v1Enabled: false
+            forceBasicAuth: false
+            httpPort: 8082
+            httpsPort: 8083
+          dockerProxy:
+            indexType: "REGISTRY"
+            cacheForeignLayers: "true"

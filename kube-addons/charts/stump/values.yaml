@@ -1,0 +1,93 @@
+# Default values for stump.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: aaronleopold/stump
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "0.1.2"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  fsGroup: 1000
+  # fsGroup is applied by the kubelet on the node (real root), NOT inside the container.
+  # This bypasses NFS root_squash and ensures /config and /data are writable by uid 1000
+  # before the container entrypoint even starts.
+
+securityContext: {}
+  # Do NOT set runAsUser/runAsGroup — the container starts as root to run chown,
+  # then su's to PUID/PGID. Forcing non-root startup breaks this pattern.
+
+# Environment variables — mirrors the docker-compose `environment` block
+env:
+  PUID: "1000"
+  PGID: "1000"
+  STUMP_CONFIG_DIR: "/config"
+
+# Extra arbitrary env vars (e.g. feature flags, OPDS config)
+extraEnv: []
+
+service:
+  type: ClusterIP
+  port: 10801
+
+ingress:
+  enabled: true
+  className: "nginx-internal"
+  annotations: {}
+  hosts:
+    - host: stump.localdev.me
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources: {}
+  # limits:
+  #   cpu: 500m
+  #   memory: 512Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+
+# Persistence — mirrors docker-compose volumes
+persistence:
+  # /config — stores Stump's application configuration & database
+  config:
+    enabled: true
+    storageClass: "nfs-csi"
+    size: "1Gi"
+  # /data — maps to your media library (e.g. /media/books in docker-compose)
+  data:
+    enabled: true
+    storageClass: "nfs-csi"
+    size: "100Gi"
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

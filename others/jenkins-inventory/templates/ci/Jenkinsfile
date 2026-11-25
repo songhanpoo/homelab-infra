@@ -1,0 +1,36 @@
+#!/usr/bin/env groovy
+
+// Evaluate builder agent configuration from our JTE library
+// This must remain a static variable evaluation before the pipeline block!
+String builderAgents = ci_agent()
+
+pipeline {
+    agent {
+        kubernetes {
+            // Jenkins smoothly interpolates the string literal here!
+            inheritFrom "${builderAgents}"
+        }
+    }
+    options {
+        timeout(time: 1, unit: 'HOURS')
+        skipDefaultCheckout()
+        ansiColor('xterm')
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                stage_checkout()
+            }
+        }
+        stage('Install Dependencies') {
+            steps {
+                stage_compile()
+            }
+        }
+        stage('Build') {
+            steps {
+                stage_build()
+            }
+        }
+    }
+}

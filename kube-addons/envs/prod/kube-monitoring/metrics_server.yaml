@@ -1,0 +1,19 @@
+metrics_server:
+  name: "metrics-server"
+  repository: "https://kubernetes-sigs.github.io/metrics-server/"
+  chart: "metrics-server"
+  version: "3.13.0"
+  namespace: "kube-monitoring"
+  values_yaml:
+    apiService:
+      insecureSkipTLSVerify: true
+    service:
+      name: metrics-server
+    defaultArgs:
+      - --cert-dir=/tmp
+      - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+      - --kubelet-use-node-status-port
+      - --metric-resolution=15s
+      - --kubelet-insecure-tls
+    # tls:
+    #   type: helm

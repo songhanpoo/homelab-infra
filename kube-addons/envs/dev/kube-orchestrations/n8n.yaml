@@ -1,0 +1,77 @@
+# n8n:
+#   name: "n8n"
+#   repository: "https://community-charts.github.io/helm-charts"
+#   chart: "n8n"
+#   namespace: "kube-orchestrations"
+#   values_yaml:
+#     # image:
+#     #   repository: "nexus-docker-private.local.proxy/n8n-runner"
+#     #   tag: "2.11.4-rc-1"
+#     #   # repository: "burakince/n8n-python"
+#     #   # tag: "2.0.3"
+#     #   pullPolicy: IfNotPresent
+#     # imagePullSecrets:
+#     #   - name: nexus-docker-registries
+#     ingress:
+#       enabled: true
+#       className: "nginx-internal"
+#       hosts:
+#         - host: "n8n.localdev.me"
+#           paths:
+#             - path: "/"
+#               pathType: "Prefix"
+#     nodes:
+#       builtin:
+#         enabled: true
+#         modules:
+#           - crypto
+#           - fs
+#           - http
+#           - https
+#           - querystring
+#           - url
+#       external:
+#         reinstallMissingPackages: true
+#         # packages:
+#         #   - "iconv-lite@0.6.3"
+#         #   - "n8n-nodes-python@0.1.4"
+#         #   - "n8n-nodes-chatwoot@0.1.40"
+#         #   - "n8n/task-runner-python"
+#     main:
+#       persistence:
+#         enabled: true
+#         storageClass: "nfs-csi"
+#         size: "10Gi"
+#       extraEnvVars:
+#         N8N_SECURE_COOKIE: "false"
+#         N8N_REINSTALL_MISSING_PACKAGES: "true"
+#         # N8N_RUNNERS_MODE: "internal"
+#     taskRunners:
+#       mode: external
+#       image: "n8nio/runners"
+#       tag: "2.13.4"
+#       imagePullPolicy: IfNotPresent
+#       # imagePullSecrets:
+#       #   - name: nexus-docker-registries
+#       external:
+#         packages:
+#           - n8n-nodes-crawl4ai-enhanced
+#         pythonPackages:
+#           - ruamel.yaml
+#           - requests
+#     db:
+#       type: "postgresdb"
+#     externalPostgresql:
+#       host: "192.168.1.120"
+#       port: 5432
+#       username: "n8n"
+#       database: "n8n"
+#       password: "sim-china-busiest-gaelic"
+#     encryptionKey: "your-32-character-encryption-key"
+#     # taskRunners:
+#     #   mode: external
+#     externalRedis:
+#       host: "192.168.1.110"
+#       port: 6379
+#       username: n8n
+#       password: woulda-blended-shimmy-charged

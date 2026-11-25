@@ -1,0 +1,8 @@
+ingress_nginx_internal:
+  name: "ingress-nginx"
+  repository: "https://kubernetes.github.io/ingress-nginx"
+  chart: "ingress-nginx"
+  namespace: "kube-system"
+  version: "4.14.1"
+  ingress_class_name: "nginx-internal"
+  controller_value: "k8s.io/nginx-internal"
