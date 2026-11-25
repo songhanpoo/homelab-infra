@@ -1,8 +1,6 @@
 TF=terraform
-ENV ?= nonprod
-export TF_VAR_env = $(ENV)
-# Physical R2 state object. Pinned to the original "dev" key so renaming the logical env
-# does not point Terraform at an empty state (which would plan to recreate everything).
+# Physical R2 state object. Pinned to the original "dev" key so Terraform keeps reading it:
+# a different key would be an empty state (which would plan to recreate everything).
 STATE_ENV ?= dev
 
 # Credentials come from the environment (export locally, or Harness secrets in CI):

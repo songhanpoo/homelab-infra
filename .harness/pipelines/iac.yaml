@@ -20,10 +20,6 @@ pipeline:
       type: String
       description: Which root to run
       value: <+input>.allowedValues(infra,kube-addons)
-    - name: ENV
-      type: String
-      description: nonprod or prod (kube-addons: envs/nonprod, envs/prod; infra: envs/<env>.yaml)
-      value: <+input>.allowedValues(nonprod,prod)
     - name: ACTION
       type: String
       description: plan = plan only, apply = plan, approve, apply
@@ -51,7 +47,6 @@ pipeline:
                     image: hashicorp/terraform:1.12.2
                     shell: Sh
                     envVariables:
-                      ENV: <+pipeline.variables.ENV>
                       R2_ACCESS_KEY: <+secrets.getValue("r2_access_key")>
                       R2_SECRET_KEY: <+secrets.getValue("r2_secret_key")>
                       R2_ACCOUNT_ID: <+secrets.getValue("r2_account_id")>
@@ -109,7 +104,6 @@ pipeline:
                     image: hashicorp/terraform:1.12.2
                     shell: Sh
                     envVariables:
-                      ENV: <+pipeline.variables.ENV>
                       R2_ACCESS_KEY: <+secrets.getValue("r2_access_key")>
                       R2_SECRET_KEY: <+secrets.getValue("r2_secret_key")>
                       R2_ACCOUNT_ID: <+secrets.getValue("r2_account_id")>

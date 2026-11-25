@@ -1,3 +1,3 @@
 locals {
-  configs = yamldecode(file("${path.module}/envs/${var.env}.yaml"))
+  configs = yamldecode(file("${path.module}/envs/nonprod.yaml"))
 }

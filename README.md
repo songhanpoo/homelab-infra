@@ -7,7 +7,7 @@
 | `others/` | Unmaintained / parked: `ansible`, `airflow-dags`, `jenkins-inventory`, `crawl4ai`, `vault-examples`, `misc` | none |
 | `.harness/` | Harness pipeline definition (Plan -> Approve -> Apply), one file for both targets | |
 
-Environments: `nonprod` and `prod` only. `ENV` selects the env; the R2 state object stays at its existing key (`STATE_ENV=dev` in both Makefiles).
+Environment config: `infra/` reads `envs/nonprod.yaml`; `kube-addons/` loads both `envs/nonprod/` and `envs/prod/`. There is no `ENV` selector. R2 state keys stay under `dev` (`STATE_ENV` in both Makefiles).
 
 Local use: `export R2_ACCESS_KEY=... R2_SECRET_KEY=... R2_ACCOUNT_ID=...` then `cd infra && make init && make plan`.
 

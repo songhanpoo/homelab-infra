@@ -1,7 +1,6 @@
 TF=terraform
-ENV ?= nonprod
-# Physical R2 state object, pinned to the original "dev" key (renaming the logical env must not
-# change which state file is read). prod and nonprod share this one state file by design.
+# Physical R2 state object, pinned to the original "dev" key (changing it would make Terraform
+# read a different state file). prod and nonprod share this one state file by design.
 STATE_ENV ?= dev
 
 # Credentials come from the environment (export locally, or Harness secrets in CI):
