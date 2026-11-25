@@ -1,7 +1,12 @@
 # One Terraform pipeline for both roots. Pick the target at run time:
 #   TARGET=infra        -> infra/        (Talos, libvirt VMs)
 #   TARGET=kube-addons  -> kube-addons/  (Helm releases and services on the cluster)
-# Flow: Plan -> Approve (apply only) -> Apply. Both stages run `make` inside the target dir.
+# Flow: Plan -> Approve (apply only) -> Apply. Both stages work inside the target dir.
+# Apply makes a fresh plan (stages do not share a plan file), so it can differ from the reviewed one.
+# Harness text secrets required (all must exist for either target):
+#   r2_access_key, r2_secret_key, r2_account_id,
+#   ssh_private_key_b64 (ed25519), ssh_known_hosts_b64, kubeconfig_b64
+#   Encode with: base64 < file | tr -d '\n'
 pipeline:
   name: IaC - terraform
   identifier: iac_terraform
@@ -50,13 +55,28 @@ pipeline:
                       R2_ACCESS_KEY: <+secrets.getValue("r2_access_key")>
                       R2_SECRET_KEY: <+secrets.getValue("r2_secret_key")>
                       R2_ACCOUNT_ID: <+secrets.getValue("r2_account_id")>
+                      SSH_KEY_B64: <+secrets.getValue("ssh_private_key_b64")>
+                      SSH_KNOWN_HOSTS_B64: <+secrets.getValue("ssh_known_hosts_b64")>
+                      KUBECONFIG_B64: <+secrets.getValue("kubeconfig_b64")>
                     command: |
-                      apk add --no-cache make >/dev/null
+                      set -eu
+                      apk add --no-cache make openssh-client >/dev/null
+                      # SSH: libvirt (infra) and the remote Docker host (kube-addons)
+                      mkdir -p ~/.ssh && chmod 700 ~/.ssh
+                      echo "$SSH_KEY_B64" | base64 -d > ~/.ssh/id_ed25519
+                      echo "$SSH_KNOWN_HOSTS_B64" | base64 -d > ~/.ssh/known_hosts
+                      chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+                      # kube-addons providers read this fixed path
+                      if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then
+                        mkdir -p ~/.kube/talos-paul
+                        echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/talos-paul/kubeconfig
+                        chmod 600 ~/.kube/talos-paul/kubeconfig
+                      fi
                       cd <+pipeline.variables.TARGET>
-                      make init
                       terraform fmt -check -recursive
+                      make init
                       make validate
-                      terraform plan -input=false
+                      terraform plan -input=false -lock-timeout=5m
     - stage:
         name: Approve
         identifier: approve
@@ -79,6 +99,7 @@ pipeline:
                       userGroups:
                         - account._account_all_users
                       minimumCount: 1
+                      disallowPipelineExecutor: false
     - stage:
         name: Apply
         identifier: apply
@@ -107,8 +128,26 @@ pipeline:
                       R2_ACCESS_KEY: <+secrets.getValue("r2_access_key")>
                       R2_SECRET_KEY: <+secrets.getValue("r2_secret_key")>
                       R2_ACCOUNT_ID: <+secrets.getValue("r2_account_id")>
+                      SSH_KEY_B64: <+secrets.getValue("ssh_private_key_b64")>
+                      SSH_KNOWN_HOSTS_B64: <+secrets.getValue("ssh_known_hosts_b64")>
+                      KUBECONFIG_B64: <+secrets.getValue("kubeconfig_b64")>
                     command: |
-                      apk add --no-cache make >/dev/null
+                      set -eu
+                      apk add --no-cache make openssh-client >/dev/null
+                      # SSH: libvirt (infra) and the remote Docker host (kube-addons)
+                      mkdir -p ~/.ssh && chmod 700 ~/.ssh
+                      echo "$SSH_KEY_B64" | base64 -d > ~/.ssh/id_ed25519
+                      echo "$SSH_KNOWN_HOSTS_B64" | base64 -d > ~/.ssh/known_hosts
+                      chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+                      # kube-addons providers read this fixed path
+                      if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then
+                        mkdir -p ~/.kube/talos-paul
+                        echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/talos-paul/kubeconfig
+                        chmod 600 ~/.kube/talos-paul/kubeconfig
+                      fi
                       cd <+pipeline.variables.TARGET>
                       make init
-                      make apply-auto
+                      # Pi-hole rejects concurrent writes, so kube-addons applies one resource at a time
+                      PARALLELISM=10
+                      if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then PARALLELISM=1; fi
+                      terraform apply -input=false -auto-approve -lock-timeout=5m -parallelism="$PARALLELISM"
