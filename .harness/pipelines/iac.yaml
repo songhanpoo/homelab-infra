@@ -4,7 +4,7 @@
 # Flow: Plan -> Approve (apply only) -> Apply. Both stages work inside the target dir.
 # Apply makes a fresh plan (stages do not share a plan file), so it can differ from the reviewed one.
 # Harness text secrets required (all must exist for either target):
-#   r2_access_key, r2_secret_key, r2_account_id,
+#   r2_access_key, r2_secret_key, r2_account_id (kube-addons state), harness_api_token (infra state),
 #   ssh_private_key_b64 (ed25519), ssh_known_hosts_b64, kubeconfig_b64
 #   Encode with: base64 < file | tr -d '\n'
 pipeline:
@@ -55,6 +55,7 @@ pipeline:
                       R2_ACCESS_KEY: <+secrets.getValue("r2_access_key")>
                       R2_SECRET_KEY: <+secrets.getValue("r2_secret_key")>
                       R2_ACCOUNT_ID: <+secrets.getValue("r2_account_id")>
+                      TF_HTTP_PASSWORD: <+secrets.getValue("harness_api_token")>   # infra state backend
                       SSH_KEY_B64: <+secrets.getValue("ssh_private_key_b64")>
                       SSH_KNOWN_HOSTS_B64: <+secrets.getValue("ssh_known_hosts_b64")>
                       KUBECONFIG_B64: <+secrets.getValue("kubeconfig_b64")>
@@ -128,6 +129,7 @@ pipeline:
                       R2_ACCESS_KEY: <+secrets.getValue("r2_access_key")>
                       R2_SECRET_KEY: <+secrets.getValue("r2_secret_key")>
                       R2_ACCOUNT_ID: <+secrets.getValue("r2_account_id")>
+                      TF_HTTP_PASSWORD: <+secrets.getValue("harness_api_token")>   # infra state backend
                       SSH_KEY_B64: <+secrets.getValue("ssh_private_key_b64")>
                       SSH_KNOWN_HOSTS_B64: <+secrets.getValue("ssh_known_hosts_b64")>
                       KUBECONFIG_B64: <+secrets.getValue("kubeconfig_b64")>

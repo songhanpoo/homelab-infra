@@ -7,8 +7,8 @@
 | `others/` | Unmaintained / parked: `ansible`, `airflow-dags`, `jenkins-inventory`, `crawl4ai`, `vault-examples`, `misc` | none |
 | `.harness/` | Harness pipeline definition (Plan -> Approve -> Apply), one file for both targets | |
 
-Environment config: `infra/` reads `envs/nonprod.yaml`; `kube-addons/` loads both `envs/nonprod/` and `envs/prod/`. There is no `ENV` selector. R2 state keys stay under `dev` (`STATE_ENV` in both Makefiles).
+Environment config: `infra/` reads `envs/nonprod.yaml`; `kube-addons/` loads both `envs/nonprod/` and `envs/prod/`. There is no `ENV` selector. `infra/` state is in the Harness IaCM workspace `homelabinfra` (needs `TF_HTTP_PASSWORD`); `kube-addons/` state stays in R2 under the `dev` key (`STATE_ENV`).
 
-Local use: `export R2_ACCESS_KEY=... R2_SECRET_KEY=... R2_ACCOUNT_ID=...` then `cd infra && make init && make plan`.
+Local use: for `infra/`, `export TF_HTTP_PASSWORD=<Harness API token>` then `make init && make plan`. For `kube-addons/`, export `R2_ACCESS_KEY`, `R2_SECRET_KEY` and `R2_ACCOUNT_ID` instead.
 
 Order on a fresh setup: `infra` first, then `kube-addons`.

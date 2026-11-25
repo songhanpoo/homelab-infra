@@ -13,5 +13,14 @@ terraform {
       version = "3.6.2"
     }
   }
-  backend "s3" {}
+  # State lives in the Harness IaCM workspace "homelabinfra".
+  # The password is a Harness API token, supplied through TF_HTTP_PASSWORD. Never put it here.
+  backend "http" {
+    address        = "https://app.harness.io/gateway/iacm/api/orgs/default/projects/visabulletin/workspaces/homelabinfra/terraform-backend?accountIdentifier=LzGbvkVKS72VH3cLnnJmSA"
+    username       = "harness"
+    lock_address   = "https://app.harness.io/gateway/iacm/api/orgs/default/projects/visabulletin/workspaces/homelabinfra/terraform-backend/lock?accountIdentifier=LzGbvkVKS72VH3cLnnJmSA"
+    lock_method    = "POST"
+    unlock_address = "https://app.harness.io/gateway/iacm/api/orgs/default/projects/visabulletin/workspaces/homelabinfra/terraform-backend/lock?accountIdentifier=LzGbvkVKS72VH3cLnnJmSA"
+    unlock_method  = "DELETE"
+  }
 }
