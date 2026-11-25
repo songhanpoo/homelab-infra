@@ -1,27 +1,33 @@
-# Harness pipeline: IaC - kube-addons (Helm/services)  (working dir: kube-addons/)
-# Flow: Plan -> manual approval -> Apply. Apply re-runs plan with -auto-approve semantics
-# on the same commit, so what was approved is what gets applied.
+# One Terraform pipeline for both roots. Pick the target at run time:
+#   TARGET=infra        -> infra/        (Talos, libvirt VMs)
+#   TARGET=kube-addons  -> kube-addons/  (Helm releases and services on the cluster)
+# Flow: Plan -> Approve (apply only) -> Apply. Both stages run `make` inside the target dir.
 pipeline:
-  name: IaC - kube-addons (Helm/services)
-  identifier: iac_kube_addons
-  projectIdentifier: <+input>      # or hard-code your Harness project
+  name: IaC - terraform
+  identifier: iac_terraform
+  projectIdentifier: <+input>
   orgIdentifier: default
   tags:
     iac: terraform
   properties:
     ci:
       codebase:
-        connectorRef: <+input>     # Git connector pointing at this repo
+        connectorRef: <+input>     # Git connector for this repo
         repoName: <+input>
         build: <+input>
   variables:
+    - name: TARGET
+      type: String
+      description: Which root to run
+      value: <+input>.allowedValues(infra,kube-addons)
     - name: ENV
       type: String
-      value: dev
+      description: nonprod or prod (kube-addons: envs/nonprod, envs/prod; infra: envs/<env>.yaml)
+      value: <+input>.allowedValues(nonprod,prod)
     - name: ACTION
       type: String
-      description: plan-only | apply
-      value: apply
+      description: plan = plan only, apply = plan, approve, apply
+      value: <+input>.allowedValues(plan,apply)
   stages:
     - stage:
         name: Plan
@@ -29,12 +35,10 @@ pipeline:
         type: CI
         spec:
           cloneCodebase: true
-          # Must run where it can reach the target (libvirt host / k8s API / R2).
-          # Point connectorRef at the Kubernetes connector backed by your delegate.
           infrastructure:
             type: KubernetesDirect
             spec:
-              connectorRef: <+input>
+              connectorRef: <+input>   # Kubernetes connector on the LAN delegate
               namespace: harness-executions
           execution:
             steps:
@@ -53,7 +57,7 @@ pipeline:
                       R2_ACCOUNT_ID: <+secrets.getValue("r2_account_id")>
                     command: |
                       apk add --no-cache make >/dev/null
-                      cd kube-addons
+                      cd <+pipeline.variables.TARGET>
                       make init
                       terraform fmt -check -recursive
                       make validate
@@ -74,7 +78,7 @@ pipeline:
                   type: HarnessApproval
                   timeout: 1d
                   spec:
-                    approvalMessage: Review the plan output of the previous stage, then approve to apply.
+                    approvalMessage: Review the plan of the previous stage, then approve to apply.
                     includePipelineExecutionHistory: true
                     approvers:
                       userGroups:
@@ -111,6 +115,6 @@ pipeline:
                       R2_ACCOUNT_ID: <+secrets.getValue("r2_account_id")>
                     command: |
                       apk add --no-cache make >/dev/null
-                      cd kube-addons
+                      cd <+pipeline.variables.TARGET>
                       make init
                       make apply-auto
