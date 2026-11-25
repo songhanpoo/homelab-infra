@@ -1,5 +1,9 @@
 TF=terraform
-ENV ?= dev
+ENV ?= nonprod
+export TF_VAR_env = $(ENV)
+# Physical R2 state object. Pinned to the original "dev" key so renaming the logical env
+# does not point Terraform at an empty state (which would plan to recreate everything).
+STATE_ENV ?= dev
 
 # Credentials come from the environment (export locally, or Harness secrets in CI):
 #   R2_ACCESS_KEY, R2_SECRET_KEY, R2_ACCOUNT_ID
@@ -15,7 +19,7 @@ init:
 		-backend-config="skip_requesting_account_id=true" \
 		-backend-config="skip_s3_checksum=true" \
 		-backend-config="use_path_style=true" \
-		-backend-config="key='/paul/infra/$(ENV)/terraform.tfstate'" \
+		-backend-config="key='/paul/infra/$(STATE_ENV)/terraform.tfstate'" \
 		-backend-config="access_key=$(R2_ACCESS_KEY)" \
 		-backend-config="secret_key=$(R2_SECRET_KEY)" \
 		-backend-config='endpoints={s3="$(R2_ENDPOINT)"}' \
