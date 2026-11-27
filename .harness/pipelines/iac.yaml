@@ -30,10 +30,6 @@ pipeline:
       type: String
       description: plan = plan only, apply = plan, approve, apply
       value: <+input>.allowedValues(plan,apply)
-    - name: SCOPE
-      type: String
-      description: kube-addons only. all = everything, or just the prod or nonprod tier
-      value: <+input>.default(all).allowedValues(all,prod,nonprod)
   stages:
     - stage:
         name: Plan
@@ -64,7 +60,6 @@ pipeline:
                       SSH_KEY_B64: <+secrets.getValue("ssh_private_key_b64")>
                       SSH_KNOWN_HOSTS_B64: <+secrets.getValue("ssh_known_hosts_b64")>
                       KUBECONFIG_B64: <+secrets.getValue("kubeconfig_b64")>
-                      SCOPE: <+pipeline.variables.SCOPE>
                     command: |
                       set -eu
                       apk add --no-cache make openssh-client >/dev/null
@@ -83,14 +78,7 @@ pipeline:
                       terraform -chdir="$TF_DIR" fmt -check -recursive
                       make -C "$TF_DIR" init
                       terraform -chdir="$TF_DIR" validate
-                      # SCOPE applies to kube-addons only; empty means all
-                      RUN_SCOPE=all
-                      if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then RUN_SCOPE="${SCOPE:-all}"; fi
-                      case "$RUN_SCOPE" in
-                        all) terraform -chdir="$TF_DIR" plan -input=false -lock-timeout=5m ;;
-                        prod|nonprod) make -C "$TF_DIR" "plan-$RUN_SCOPE" ARGS="-input=false -lock-timeout=5m" ;;
-                        *) echo "Unknown SCOPE: $RUN_SCOPE" >&2; exit 1 ;;
-                      esac
+                      terraform -chdir="$TF_DIR" plan -input=false -lock-timeout=5m
     - stage:
         name: Approve
         identifier: approve
@@ -146,7 +134,6 @@ pipeline:
                       SSH_KEY_B64: <+secrets.getValue("ssh_private_key_b64")>
                       SSH_KNOWN_HOSTS_B64: <+secrets.getValue("ssh_known_hosts_b64")>
                       KUBECONFIG_B64: <+secrets.getValue("kubeconfig_b64")>
-                      SCOPE: <+pipeline.variables.SCOPE>
                     command: |
                       set -eu
                       apk add --no-cache make openssh-client >/dev/null
@@ -166,11 +153,4 @@ pipeline:
                       # Pi-hole rejects concurrent writes, so kube-addons applies one resource at a time
                       PARALLELISM=10
                       if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then PARALLELISM=1; fi
-                      # SCOPE applies to kube-addons only; empty means all
-                      RUN_SCOPE=all
-                      if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then RUN_SCOPE="${SCOPE:-all}"; fi
-                      case "$RUN_SCOPE" in
-                        all) terraform -chdir="$TF_DIR" apply -input=false -auto-approve -lock-timeout=5m -parallelism="$PARALLELISM" ;;
-                        prod|nonprod) make -C "$TF_DIR" "apply-$RUN_SCOPE" ARGS="-input=false -auto-approve -lock-timeout=5m -parallelism=1" ;;
-                        *) echo "Unknown SCOPE: $RUN_SCOPE" >&2; exit 1 ;;
-                      esac
+                      terraform -chdir="$TF_DIR" apply -input=false -auto-approve -lock-timeout=5m -parallelism="$PARALLELISM"
