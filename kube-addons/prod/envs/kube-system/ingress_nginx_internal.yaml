@@ -6,3 +6,4 @@ ingress_nginx_internal:
   version: "4.14.1"
   ingress_class_name: "nginx-internal"
   controller_value: "k8s.io/nginx-internal"
+  http_node_port: 32172 # must match k8s_ingress_url in envs/platform/traefik.yaml

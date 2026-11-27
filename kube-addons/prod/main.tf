@@ -33,6 +33,12 @@ resource "helm_release" "ingress-nginx-internal" {
       name  = "controller.config.use-forwarded-headers"
       value = "true"
     },
+    # Traefik (envs/platform/traefik.yaml) forwards to this port. Without pinning it,
+    # a reinstall gets a random NodePort and every route returns 502.
+    {
+      name  = "controller.service.nodePorts.http"
+      value = tostring(local.config.ingress_nginx_internal.http_node_port)
+    },
   ]
 }
 
