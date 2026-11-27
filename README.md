@@ -4,7 +4,7 @@
 |---|---|---|
 | `infra/` | Terraform: Talos, KVM/libvirt VMs, nginx-proxy -> baseline cluster | `.harness/pipelines/iac.yaml` (TARGET=infra) |
 | `databases/nonprod/` | PostgreSQL databases, roles and grants (apply before `kube-addons/nonprod`) | `.harness/pipelines/iac.yaml` (TARGET=databases/nonprod) |
-| `databases/prod/` | Empty placeholder for production databases | `.harness/pipelines/iac.yaml` (TARGET=databases/prod) |
+| `databases/prod/` | Empty placeholder for production databases | Not in the pipeline yet |
 | `kube-addons/prod/` | Platform tier: ingress, NFS storage, DNS, Traefik, metrics | `.harness/pipelines/iac.yaml` (TARGET=kube-addons/prod) |
 | `kube-addons/nonprod/` | Application tier: Nexus, Kestra, Harness delegate, apps, databases | `.harness/pipelines/iac.yaml` (TARGET=kube-addons/nonprod) |
 | `kube-addons/charts/` | Local Helm charts (`nonprod/charts` links here) | |
