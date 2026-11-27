@@ -1,7 +1,8 @@
 # One Terraform pipeline for both roots. Pick the target at run time:
 #   TARGET=infra        -> infra/        (Talos, libvirt VMs)
 #   TARGET=kube-addons  -> kube-addons/  (Helm releases and services on the cluster)
-# Flow: Plan -> Approve (apply only) -> Apply. Both stages work inside the target dir.
+# Flow: Plan -> Approve (apply only) -> Apply. Steps stay at the repo root and point
+# terraform (-chdir) and make (-C) at the target dir.
 # Apply makes a fresh plan (stages do not share a plan file), so it can differ from the reviewed one.
 # Harness text secrets required (all must exist for either target):
 #   r2_access_key, r2_secret_key, r2_account_id (kube-addons state), harness_api_token (infra state),
@@ -17,9 +18,8 @@ pipeline:
   properties:
     ci:
       codebase:
-        # Account-type GitHub connector, so the repo is chosen per run.
-        connectorRef: nextbulletinconnector
-        repoName: <+input>.default(homelab-infra)
+        connectorRef: songhanpoo     # Git connector for this repo
+        repoName: homelab-infra
         build: <+input>
   variables:
     - name: TARGET
@@ -30,6 +30,20 @@ pipeline:
       type: String
       description: plan = plan only, apply = plan, approve, apply
       value: <+input>.allowedValues(plan,apply)
+    - name: SCOPE
+      type: String
+      description: kube-addons only. all = everything, or just the prod or nonprod tier
+      value: <+input>.default(all).allowedValues(all,prod,nonprod)
+  # Shows SCOPE only for kube-addons. Beta: needs the Harness flag PIPE_RUNTIME_INPUT_CONFIG.
+  # This only changes the run form; the step scripts decide whether SCOPE is used.
+  runtimeInputConfig:
+    - target: pipeline.variables.SCOPE
+      label: Add-on scope
+      description: Which kube-addons tier to run
+      visibleWhen:
+        field: pipeline.variables.TARGET
+        op: eq
+        value: kube-addons
   stages:
     - stage:
         name: Plan
@@ -40,10 +54,8 @@ pipeline:
           infrastructure:
             type: KubernetesDirect
             spec:
-              connectorRef: paultalos
+              connectorRef: paultalos   # Kubernetes connector on the LAN delegate
               namespace: harness-executions
-              harnessImageConnectorRef: nexusdocker
-              os: Linux
           execution:
             steps:
               - step:
@@ -51,7 +63,7 @@ pipeline:
                   identifier: tf_plan
                   type: Run
                   spec:
-                    connectorRef: nexusdocker
+                    connectorRef: nexusdocker   # Docker registry connector (or drop for public pulls)
                     image: hashicorp/terraform:1.12.2
                     shell: Sh
                     envVariables:
@@ -62,6 +74,7 @@ pipeline:
                       SSH_KEY_B64: <+secrets.getValue("ssh_private_key_b64")>
                       SSH_KNOWN_HOSTS_B64: <+secrets.getValue("ssh_known_hosts_b64")>
                       KUBECONFIG_B64: <+secrets.getValue("kubeconfig_b64")>
+                      SCOPE: <+pipeline.variables.SCOPE>
                     command: |
                       set -eu
                       apk add --no-cache make openssh-client >/dev/null
@@ -76,11 +89,18 @@ pipeline:
                         echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/talos-paul/kubeconfig
                         chmod 600 ~/.kube/talos-paul/kubeconfig
                       fi
-                      cd <+pipeline.variables.TARGET>
-                      terraform fmt -check -recursive
-                      make init
-                      make validate
-                      terraform plan -input=false -lock-timeout=5m
+                      TF_DIR="<+pipeline.variables.TARGET>"
+                      terraform -chdir="$TF_DIR" fmt -check -recursive
+                      make -C "$TF_DIR" init
+                      terraform -chdir="$TF_DIR" validate
+                      # SCOPE applies to kube-addons only; empty means all
+                      RUN_SCOPE=all
+                      if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then RUN_SCOPE="${SCOPE:-all}"; fi
+                      case "$RUN_SCOPE" in
+                        all) terraform -chdir="$TF_DIR" plan -input=false -lock-timeout=5m ;;
+                        prod|nonprod) make -C "$TF_DIR" "plan-$RUN_SCOPE" ARGS="-input=false -lock-timeout=5m" ;;
+                        *) echo "Unknown SCOPE: $RUN_SCOPE" >&2; exit 1 ;;
+                      esac
     - stage:
         name: Approve
         identifier: approve
@@ -114,7 +134,10 @@ pipeline:
         spec:
           cloneCodebase: true
           infrastructure:
-            useFromStage: plan
+            type: KubernetesDirect
+            spec:
+              connectorRef: paultalos
+              namespace: harness-executions
           execution:
             steps:
               - step:
@@ -133,6 +156,7 @@ pipeline:
                       SSH_KEY_B64: <+secrets.getValue("ssh_private_key_b64")>
                       SSH_KNOWN_HOSTS_B64: <+secrets.getValue("ssh_known_hosts_b64")>
                       KUBECONFIG_B64: <+secrets.getValue("kubeconfig_b64")>
+                      SCOPE: <+pipeline.variables.SCOPE>
                     command: |
                       set -eu
                       apk add --no-cache make openssh-client >/dev/null
@@ -147,9 +171,16 @@ pipeline:
                         echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/talos-paul/kubeconfig
                         chmod 600 ~/.kube/talos-paul/kubeconfig
                       fi
-                      cd <+pipeline.variables.TARGET>
-                      make init
+                      TF_DIR="<+pipeline.variables.TARGET>"
+                      make -C "$TF_DIR" init
                       # Pi-hole rejects concurrent writes, so kube-addons applies one resource at a time
                       PARALLELISM=10
                       if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then PARALLELISM=1; fi
-                      terraform apply -input=false -auto-approve -lock-timeout=5m -parallelism="$PARALLELISM"
+                      # SCOPE applies to kube-addons only; empty means all
+                      RUN_SCOPE=all
+                      if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then RUN_SCOPE="${SCOPE:-all}"; fi
+                      case "$RUN_SCOPE" in
+                        all) terraform -chdir="$TF_DIR" apply -input=false -auto-approve -lock-timeout=5m -parallelism="$PARALLELISM" ;;
+                        prod|nonprod) make -C "$TF_DIR" "apply-$RUN_SCOPE" ARGS="-input=false -auto-approve -lock-timeout=5m -parallelism=1" ;;
+                        *) echo "Unknown SCOPE: $RUN_SCOPE" >&2; exit 1 ;;
+                      esac
