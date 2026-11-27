@@ -2,6 +2,8 @@
 #   TARGET=infra        -> infra/        (Talos, libvirt VMs)
 #   TARGET=kube-addons/prod     -> platform tier: ingress, storage, DNS, Traefik, metrics
 #   TARGET=kube-addons/nonprod  -> application tier (needs prod: apply after it, destroy before it)
+#   TARGET=databases/nonprod    -> PostgreSQL databases, roles and grants (apply before kube-addons/nonprod)
+#   TARGET=databases/prod       -> empty placeholder, nothing managed yet
 # Flow: Plan -> Approve -> Apply or Destroy (ACTION=plan stops after Plan). With
 # ACTION=destroy the Plan stage previews the deletion, and CONFIRM_DESTROY must be
 # destroy-<TARGET>. Steps stay at the repo root and point
@@ -28,7 +30,7 @@ pipeline:
     - name: TARGET
       type: String
       description: Which root to run
-      value: <+input>.allowedValues(infra,kube-addons/prod,kube-addons/nonprod)
+      value: <+input>.allowedValues(infra,databases/nonprod,databases/prod,kube-addons/prod,kube-addons/nonprod)
     - name: ACTION
       type: String
       description: plan = plan only. apply or destroy = plan, approve, then run it
