@@ -73,11 +73,18 @@ pipeline:
                       echo "$SSH_KEY_B64" | base64 -d > ~/.ssh/id_ed25519
                       echo "$SSH_KNOWN_HOSTS_B64" | base64 -d > ~/.ssh/known_hosts
                       chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+                      # Fail early on a wrong or swapped secret. Never print the contents.
+                      awk 'NF && $1 !~ /^#/ { n++; i = ($1 ~ /^@/) ? 3 : 2; if (NF <= i || $i !~ /^(ssh-|ecdsa-|sk-)/) bad = 1 } END { exit (bad || !n) }' ~/.ssh/known_hosts \
+                        || { echo "Secret ssh_known_hosts_b64 does not decode to a known_hosts file" >&2; exit 1; }
+                      ssh-keygen -y -P "" -f ~/.ssh/id_ed25519 >/dev/null 2>&1 \
+                        || { echo "Secret ssh_private_key_b64 is not a valid private key without a passphrase" >&2; exit 1; }
                       # kube-addons providers read this fixed path
                       if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then
                         mkdir -p ~/.kube/talos-paul
                         echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/talos-paul/kubeconfig
                         chmod 600 ~/.kube/talos-paul/kubeconfig
+                        grep -q '^apiVersion:' ~/.kube/talos-paul/kubeconfig \
+                          || { echo "Secret kubeconfig_b64 does not decode to a kubeconfig" >&2; exit 1; }
                       fi
                       TF_DIR="<+pipeline.variables.TARGET>"
                       terraform -chdir="$TF_DIR" fmt -check -recursive
@@ -155,11 +162,18 @@ pipeline:
                       echo "$SSH_KEY_B64" | base64 -d > ~/.ssh/id_ed25519
                       echo "$SSH_KNOWN_HOSTS_B64" | base64 -d > ~/.ssh/known_hosts
                       chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+                      # Fail early on a wrong or swapped secret. Never print the contents.
+                      awk 'NF && $1 !~ /^#/ { n++; i = ($1 ~ /^@/) ? 3 : 2; if (NF <= i || $i !~ /^(ssh-|ecdsa-|sk-)/) bad = 1 } END { exit (bad || !n) }' ~/.ssh/known_hosts \
+                        || { echo "Secret ssh_known_hosts_b64 does not decode to a known_hosts file" >&2; exit 1; }
+                      ssh-keygen -y -P "" -f ~/.ssh/id_ed25519 >/dev/null 2>&1 \
+                        || { echo "Secret ssh_private_key_b64 is not a valid private key without a passphrase" >&2; exit 1; }
                       # kube-addons providers read this fixed path
                       if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then
                         mkdir -p ~/.kube/talos-paul
                         echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/talos-paul/kubeconfig
                         chmod 600 ~/.kube/talos-paul/kubeconfig
+                        grep -q '^apiVersion:' ~/.kube/talos-paul/kubeconfig \
+                          || { echo "Secret kubeconfig_b64 does not decode to a kubeconfig" >&2; exit 1; }
                       fi
                       TF_DIR="<+pipeline.variables.TARGET>"
                       make -C "$TF_DIR" init
