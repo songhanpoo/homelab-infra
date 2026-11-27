@@ -149,3 +149,27 @@ nexus:
           dockerProxy:
             indexType: "REGISTRY"
             cacheForeignLayers: "true"
+        # Caches public Terraform providers and modules. Terraform reaches it through a
+        # "host" override for registry.terraform.io in its CLI config file.
+        - name: terraform-proxy
+          format: terraform
+          type: proxy
+          online: true
+          negativeCache:
+            enabled: true
+            timeToLive: 1440
+          proxy:
+            remoteUrl: https://registry.terraform.io
+            metadataMaxAge: 1440
+            contentMaxAge: 1440
+          httpClient:
+            blocked: false
+            autoBlock: true
+          terraform:
+            requireAuthentication: false
+          storage:
+            blobStoreName: default
+            strictContentTypeValidation: false
+          cleanup:
+            policyNames:
+              - CleanupAll
