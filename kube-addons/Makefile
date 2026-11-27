@@ -77,11 +77,11 @@ plan:
 
 .PHONY: plan-prod
 plan-prod:
-	$(TF) plan $(PROD_TARGETS)
+	$(TF) plan $(PROD_TARGETS) $(ARGS)
 
 .PHONY: plan-nonprod
 plan-nonprod:
-	$(TF) plan $(NONPROD_TARGETS)
+	$(TF) plan $(NONPROD_TARGETS) $(ARGS)
 
 .PHONY: apply
 apply:
@@ -90,11 +90,11 @@ apply:
 .PHONY: apply-prod
 apply-prod:
 	# Pi-hole's API can't take concurrent writes: parallel record creates return 400 even though the record lands.
-	$(TF) apply -parallelism=1 $(PROD_TARGETS)
+	$(TF) apply -parallelism=1 $(PROD_TARGETS) $(ARGS)
 
 .PHONY: apply-nonprod
 apply-nonprod:
-	$(TF) apply $(NONPROD_TARGETS)
+	$(TF) apply $(NONPROD_TARGETS) $(ARGS)
 
 .PHONY: apply-auto
 apply-auto:
