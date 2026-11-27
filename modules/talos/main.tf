@@ -273,8 +273,8 @@ resource "libvirt_domain" "nodes" {
 
   lifecycle {
     ignore_changes = [
-      devices[0].hostdevs,
-      devices[0].disks
+      devices.hostdevs,
+      devices.disks
     ]
   }
 }
