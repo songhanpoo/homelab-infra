@@ -12,7 +12,7 @@ migrate-state:
 	$(TF) init -migrate-state
 
 lint:
-  $(TF) --call-module-type=all --enable=rule=terraform_naming_convention
+	$(TF) fmt -check -recursive
 .PHONY: lint
 
 .PHONY: validate
