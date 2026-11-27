@@ -48,6 +48,15 @@ resource "libvirt_volume" "vm_cloudinit" {
       url = libvirt_cloudinit_disk.vm_init[each.key].path
     }
   }
+
+  # "create" is only used when the volume is first uploaded. The ISO path is a temp file on
+  # whichever machine runs Terraform, so it differs per machine and per pipeline container,
+  # and the provider cannot update a volume in place.
+  # To push edited cloud-init data on purpose, replace the volume:
+  #   terraform apply -replace='module.virtual-machine.libvirt_volume.vm_cloudinit["<node>"]'
+  lifecycle {
+    ignore_changes = [create]
+  }
 }
 
 # Create libvirt domains for each node
