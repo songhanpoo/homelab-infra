@@ -30,11 +30,12 @@ terraform {
     # }
   }
   backend "http" {
-    address        = "https://app.harness.io/gateway/iacm/api/orgs/default/projects/visabulletin/workspaces/homelabinfra/terraform-backend?accountIdentifier=LzGbvkVKS72VH3cLnnJmSA"
-    username       = "harness"
-    lock_address   = "https://app.harness.io/gateway/iacm/api/orgs/default/projects/visabulletin/workspaces/homelabinfra/terraform-backend/lock?accountIdentifier=LzGbvkVKS72VH3cLnnJmSA"
-    lock_method    = "POST"
-    unlock_address = "https://app.harness.io/gateway/iacm/api/orgs/default/projects/visabulletin/workspaces/homelabinfra/terraform-backend/lock?accountIdentifier=LzGbvkVKS72VH3cLnnJmSA"
-    unlock_method  = "DELETE"
+    address = "https://app.harness.io/gateway/iacm/api/orgs/default/projects/visabulletin/workspaces/homelabkubeaddons/terraform-backend?accountIdentifier=LzGbvkVKS72VH3cLnnJmSA"
+    username = "harness"
+    lock_address = "https://app.harness.io/gateway/iacm/api/orgs/default/projects/visabulletin/workspaces/homelabkubeaddons/terraform-backend/lock?accountIdentifier=LzGbvkVKS72VH3cLnnJmSA"
+    lock_method = "POST"
+    unlock_address = "https://app.harness.io/gateway/iacm/api/orgs/default/projects/visabulletin/workspaces/homelabkubeaddons/terraform-backend/lock?accountIdentifier=LzGbvkVKS72VH3cLnnJmSA"
+    unlock_method = "DELETE"
   }
+}
 }
