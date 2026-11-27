@@ -1,4 +1,7 @@
 TF=terraform
+# Pi-hole's API can't take concurrent writes: parallel record changes fail (EOF, connection
+# reset or status 400) even though a record may still be saved. Change one at a time.
+SERIAL=-parallelism=1
 
 # Platform tier (ingress, storage, DNS, Traefik, metrics). Apply before nonprod; destroy after it.
 # State: its own Harness IaCM workspace. Needs TF_HTTP_PASSWORD in the environment.
@@ -21,16 +24,16 @@ plan:
 
 .PHONY: apply
 apply:
-	$(TF) apply
+	$(TF) apply $(SERIAL)
 
 .PHONY: apply-auto
 apply-auto:
-	$(TF) apply -auto-approve
+	$(TF) apply -auto-approve $(SERIAL)
 
 .PHONY: destroy
 destroy:
-	$(TF) destroy
+	$(TF) destroy $(SERIAL)
 
 .PHONY: destroy-auto
 destroy-auto:
-	$(TF) destroy -auto-approve
+	$(TF) destroy -auto-approve $(SERIAL)
