@@ -1,9 +1,11 @@
 # One Terraform pipeline for both roots. Pick the target at run time:
 #   TARGET=infra        -> infra/        (Talos, libvirt VMs)
 #   TARGET=kube-addons  -> kube-addons/  (Helm releases and services on the cluster)
-# Flow: Plan -> Approve (apply only) -> Apply. Steps stay at the repo root and point
+# Flow: Plan -> Approve -> Apply or Destroy (ACTION=plan stops after Plan). With
+# ACTION=destroy the Plan stage previews the deletion, and CONFIRM_DESTROY must be
+# destroy-<TARGET>. Steps stay at the repo root and point
 # terraform (-chdir) and make (-C) at the target dir.
-# Apply makes a fresh plan (stages do not share a plan file), so it can differ from the reviewed one.
+# Apply and Destroy make a fresh plan (stages do not share a plan file), so it can differ from the reviewed one.
 # Harness text secrets required (all must exist for either target):
 #   harness_api_token (state for both targets; needs access to workspaces homelabinfra and homelabkubeaddons),
 #   ssh_private_key_b64 (ed25519), ssh_known_hosts_b64, kubeconfig_b64
@@ -28,8 +30,12 @@ pipeline:
       value: <+input>.allowedValues(infra,kube-addons)
     - name: ACTION
       type: String
-      description: plan = plan only, apply = plan, approve, apply
-      value: <+input>.allowedValues(plan,apply)
+      description: plan = plan only. apply or destroy = plan, approve, then run it
+      value: <+input>.allowedValues(plan,apply,destroy)
+    - name: CONFIRM_DESTROY
+      type: String
+      description: Only for destroy. Type destroy-infra or destroy-kube-addons to match TARGET
+      value: <+input>.default(no)
   stages:
     - stage:
         name: Plan
@@ -57,8 +63,16 @@ pipeline:
                       SSH_KEY_B64: <+secrets.getValue("ssh_private_key_b64")>
                       SSH_KNOWN_HOSTS_B64: <+secrets.getValue("ssh_known_hosts_b64")>
                       KUBECONFIG_B64: <+secrets.getValue("kubeconfig_b64")>
+                      ACTION: <+pipeline.variables.ACTION>
+                      CONFIRM_DESTROY: <+pipeline.variables.CONFIRM_DESTROY>
                     command: |
                       set -eu
+                      # Stop early if a destroy run is not confirmed
+                      if [ "$ACTION" = "destroy" ]; then
+                        if [ "$CONFIRM_DESTROY" != "destroy-<+pipeline.variables.TARGET>" ]; then
+                          echo "To destroy, set CONFIRM_DESTROY to: destroy-<+pipeline.variables.TARGET>" >&2; exit 1
+                        fi
+                      fi
                       apk add --no-cache make openssh-client >/dev/null
                       # SSH: libvirt (infra) and the remote Docker host (kube-addons)
                       mkdir -p ~/.ssh && chmod 700 ~/.ssh
@@ -75,14 +89,16 @@ pipeline:
                       terraform -chdir="$TF_DIR" fmt -check -recursive
                       make -C "$TF_DIR" init
                       terraform -chdir="$TF_DIR" validate
-                      terraform -chdir="$TF_DIR" plan -input=false -lock-timeout=5m
+                      PLAN_MODE=""
+                      if [ "$ACTION" = "destroy" ]; then PLAN_MODE="-destroy"; fi
+                      terraform -chdir="$TF_DIR" plan $PLAN_MODE -input=false -lock-timeout=5m
     - stage:
         name: Approve
         identifier: approve
         type: Approval
         when:
           pipelineStatus: Success
-          condition: <+pipeline.variables.ACTION> == "apply"
+          condition: <+pipeline.variables.ACTION> == "apply" || <+pipeline.variables.ACTION> == "destroy"
         spec:
           execution:
             steps:
@@ -92,7 +108,7 @@ pipeline:
                   type: HarnessApproval
                   timeout: 1d
                   spec:
-                    approvalMessage: Review the plan of the previous stage, then approve to apply.
+                    approvalMessage: "ACTION=<+pipeline.variables.ACTION> on <+pipeline.variables.TARGET>. Review the previous plan before approving. Destroy permanently deletes resources and data."
                     includePipelineExecutionHistory: true
                     approvers:
                       userGroups:
@@ -148,3 +164,56 @@ pipeline:
                       PARALLELISM=10
                       if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then PARALLELISM=1; fi
                       terraform -chdir="$TF_DIR" apply -input=false -auto-approve -lock-timeout=5m -parallelism="$PARALLELISM"
+    - stage:
+        name: Destroy
+        identifier: destroy
+        type: CI
+        when:
+          pipelineStatus: Success
+          condition: <+pipeline.variables.ACTION> == "destroy"
+        spec:
+          cloneCodebase: true
+          infrastructure:
+            type: KubernetesDirect
+            spec:
+              connectorRef: paultalos
+              namespace: harness-executions
+          execution:
+            steps:
+              - step:
+                  name: terraform destroy
+                  identifier: tf_destroy
+                  type: Run
+                  spec:
+                    connectorRef: nexusdocker
+                    image: hashicorp/terraform:1.12.2
+                    shell: Sh
+                    envVariables:
+                      TF_HTTP_PASSWORD: <+secrets.getValue("harness_api_token")>   # Terraform state backend
+                      SSH_KEY_B64: <+secrets.getValue("ssh_private_key_b64")>
+                      SSH_KNOWN_HOSTS_B64: <+secrets.getValue("ssh_known_hosts_b64")>
+                      KUBECONFIG_B64: <+secrets.getValue("kubeconfig_b64")>
+                      CONFIRM_DESTROY: <+pipeline.variables.CONFIRM_DESTROY>
+                    command: |
+                      set -eu
+                      if [ "$CONFIRM_DESTROY" != "destroy-<+pipeline.variables.TARGET>" ]; then
+                        echo "To destroy, set CONFIRM_DESTROY to: destroy-<+pipeline.variables.TARGET>" >&2; exit 1
+                      fi
+                      apk add --no-cache make openssh-client >/dev/null
+                      # SSH: libvirt (infra) and the remote Docker host (kube-addons)
+                      mkdir -p ~/.ssh && chmod 700 ~/.ssh
+                      echo "$SSH_KEY_B64" | base64 -d > ~/.ssh/id_ed25519
+                      echo "$SSH_KNOWN_HOSTS_B64" | base64 -d > ~/.ssh/known_hosts
+                      chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+                      # kube-addons providers read this fixed path
+                      if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then
+                        mkdir -p ~/.kube/talos-paul
+                        echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/talos-paul/kubeconfig
+                        chmod 600 ~/.kube/talos-paul/kubeconfig
+                      fi
+                      TF_DIR="<+pipeline.variables.TARGET>"
+                      make -C "$TF_DIR" init
+                      # Pi-hole rejects concurrent writes, so kube-addons applies one resource at a time
+                      PARALLELISM=10
+                      if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then PARALLELISM=1; fi
+                      terraform -chdir="$TF_DIR" destroy -input=false -auto-approve -lock-timeout=5m -parallelism="$PARALLELISM"
