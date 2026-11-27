@@ -3,7 +3,8 @@
 | Folder | What | Pipeline |
 |---|---|---|
 | `infra/` | Terraform: Talos, KVM/libvirt VMs, nginx-proxy -> baseline cluster | `.harness/pipelines/iac.yaml` (TARGET=infra) |
-| `kube-addons/` | Terraform + Helm: add-ons and services on the running cluster (`charts/`, `modules/`, `envs/`, `manifests/`) | `.harness/pipelines/iac.yaml` (TARGET=kube-addons) |
+| `kube-addons/` | Terraform + Helm: add-ons and services on the running cluster (`charts/`, `envs/`, `manifests/`) | `.harness/pipelines/iac.yaml` (TARGET=kube-addons) |
+| `modules/` | Terraform modules for both roots, referenced as `../modules/<name>` | `.harness/pipelines/iac.yaml` (format check) |
 | `others/` | Unmaintained / parked: `ansible`, `airflow-dags`, `jenkins-inventory`, `crawl4ai`, `vault-examples`, `misc` | none |
 | `.harness/` | Harness pipeline definition (Plan -> Approve -> Apply), one file for both targets | |
 

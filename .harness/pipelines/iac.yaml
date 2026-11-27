@@ -88,6 +88,7 @@ pipeline:
                       fi
                       TF_DIR="<+pipeline.variables.TARGET>"
                       terraform -chdir="$TF_DIR" fmt -check -recursive
+                      terraform fmt -check -recursive modules
                       make -C "$TF_DIR" init
                       terraform -chdir="$TF_DIR" validate
                       PLAN_MODE=""

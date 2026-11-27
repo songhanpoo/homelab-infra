@@ -52,6 +52,7 @@ migrate-state:
 
 lint:
 	$(TF) fmt -check -recursive
+	$(TF) fmt -check -recursive ../modules
 .PHONY: lint
 
 .PHONY: validate

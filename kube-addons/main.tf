@@ -1,11 +1,11 @@
 module "traefik" {
-  source          = "./modules/traefik"
+  source          = "../modules/traefik"
   traefik_version = local.config.traefik.version
   config_yaml     = file("${path.module}/envs/prod/platform/traefik.yaml")
 }
 
 module "dns" {
-  source  = "./modules/pihole-dns"
+  source  = "../modules/pihole-dns"
   records = local.config.dns.records
 }
 
@@ -165,7 +165,7 @@ resource "kubernetes_secret_v1" "visa_bulletin_dag_credentials_kestra" {
 }
 
 module "storage_classes" {
-  source          = "./modules/storage-class"
+  source          = "../modules/storage-class"
   storage_classes = local.config.storage_classes
 }
 
@@ -662,7 +662,7 @@ resource "helm_release" "metrics_server" {
 # module.floci below. Talos nodes have no Docker socket, which the chart's
 # "full" mode (needed for Lambda/RDS/ElastiCache/etc.) requires.
 # module "floci" {
-#   source = "./modules/floci"
+#   source = "../modules/floci"
 # }
 
 resource "helm_release" "cloudflared" {
@@ -680,7 +680,7 @@ resource "helm_release" "cloudflared" {
 }
 
 module "airflow_db" {
-  source   = "./modules/pg-bootstrap"
+  source   = "../modules/pg-bootstrap"
   app_name = "airflow"
 
   is_create_schema = false
@@ -701,7 +701,7 @@ module "airflow_db" {
 }
 
 module "visa_bulletin_db" {
-  source   = "./modules/pg-bootstrap"
+  source   = "../modules/pg-bootstrap"
   app_name = "visa_bulletin"
 
   is_create_schema = true
@@ -722,7 +722,7 @@ module "visa_bulletin_db" {
 }
 
 module "kestra_db" {
-  source   = "./modules/pg-bootstrap"
+  source   = "../modules/pg-bootstrap"
   app_name = "kestra"
 
   is_create_schema = true

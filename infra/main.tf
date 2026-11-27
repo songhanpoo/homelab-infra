@@ -1,6 +1,6 @@
 # KVM module to create Talos nodes
 module "talos" {
-  source = "./modules/talos"
+  source = "../modules/talos"
   nodes  = local.configs.clusters.nodes
   image = {
     version = local.configs.clusters.image.version
@@ -21,14 +21,14 @@ module "talos" {
 
 # Nginx Proxy Manager module
 # module "nginx_proxy" {
-#   source       = "./modules/nginx-proxy"
+#   source       = "../modules/nginx-proxy"
 #   service_name = "nginx-proxy-manager"
 #   timezone     = "Asia/Ho_Chi_Minh"
 # }
 
 # Initial vm by cloud_init
 module "virtual-machine" {
-  source = "./modules/kvm"
+  source = "../modules/kvm"
   nodes  = local.configs.databases.nodes
   image = {
     version = local.configs.databases.image.version
