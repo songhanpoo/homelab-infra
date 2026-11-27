@@ -34,16 +34,6 @@ pipeline:
       type: String
       description: kube-addons only. all = everything, or just the prod or nonprod tier
       value: <+input>.default(all).allowedValues(all,prod,nonprod)
-  # Shows SCOPE only for kube-addons. Beta: needs the Harness flag PIPE_RUNTIME_INPUT_CONFIG.
-  # This only changes the run form; the step scripts decide whether SCOPE is used.
-  runtimeInputConfig:
-    - target: pipeline.variables.SCOPE
-      label: Add-on scope
-      description: Which kube-addons tier to run
-      visibleWhen:
-        field: pipeline.variables.TARGET
-        op: eq
-        value: kube-addons
   stages:
     - stage:
         name: Plan
