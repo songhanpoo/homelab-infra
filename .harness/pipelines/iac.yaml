@@ -1,13 +1,14 @@
 # One Terraform pipeline for both roots. Pick the target at run time:
 #   TARGET=infra        -> infra/        (Talos, libvirt VMs)
-#   TARGET=kube-addons  -> kube-addons/  (Helm releases and services on the cluster)
+#   TARGET=kube-addons/prod     -> platform tier: ingress, storage, DNS, Traefik, metrics
+#   TARGET=kube-addons/nonprod  -> application tier (needs prod: apply after it, destroy before it)
 # Flow: Plan -> Approve -> Apply or Destroy (ACTION=plan stops after Plan). With
 # ACTION=destroy the Plan stage previews the deletion, and CONFIRM_DESTROY must be
 # destroy-<TARGET>. Steps stay at the repo root and point
 # terraform (-chdir) and make (-C) at the target dir.
 # Apply and Destroy make a fresh plan (stages do not share a plan file), so it can differ from the reviewed one.
 # Harness text secrets required (all must exist for either target):
-#   harness_api_token (state for both targets; needs access to workspaces homelabinfra and homelabkubeaddons),
+#   harness_api_token (state; needs access to the workspace of each target, one workspace per folder),
 #   ssh_private_key_b64 (ed25519), ssh_known_hosts_b64, kubeconfig_b64
 #   Encode with: base64 < file | tr -d '\n'
 pipeline:
@@ -27,14 +28,14 @@ pipeline:
     - name: TARGET
       type: String
       description: Which root to run
-      value: <+input>.allowedValues(infra,kube-addons)
+      value: <+input>.allowedValues(infra,kube-addons/prod,kube-addons/nonprod)
     - name: ACTION
       type: String
       description: plan = plan only. apply or destroy = plan, approve, then run it
       value: <+input>.allowedValues(plan,apply,destroy)
     - name: CONFIRM_DESTROY
       type: String
-      description: Only for destroy. Type destroy-infra or destroy-kube-addons to match TARGET
+      description: Only for destroy. Type destroy-<TARGET>, e.g. destroy-infra or destroy-kube-addons/nonprod
       value: <+input>.default(no)
   stages:
     - stage:
@@ -81,11 +82,12 @@ pipeline:
                       echo "$SSH_KNOWN_HOSTS_B64" | base64 -d > ~/.ssh/known_hosts
                       chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
                       # kube-addons providers read this fixed path
-                      if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then
+                      case "<+pipeline.variables.TARGET>" in kube-addons/*)
                         mkdir -p ~/.kube/talos-paul
                         echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/talos-paul/kubeconfig
                         chmod 600 ~/.kube/talos-paul/kubeconfig
-                      fi
+                        ;;
+                      esac
                       TF_DIR="<+pipeline.variables.TARGET>"
                       terraform -chdir="$TF_DIR" fmt -check -recursive
                       terraform fmt -check -recursive modules
@@ -156,16 +158,17 @@ pipeline:
                       echo "$SSH_KNOWN_HOSTS_B64" | base64 -d > ~/.ssh/known_hosts
                       chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
                       # kube-addons providers read this fixed path
-                      if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then
+                      case "<+pipeline.variables.TARGET>" in kube-addons/*)
                         mkdir -p ~/.kube/talos-paul
                         echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/talos-paul/kubeconfig
                         chmod 600 ~/.kube/talos-paul/kubeconfig
-                      fi
+                        ;;
+                      esac
                       TF_DIR="<+pipeline.variables.TARGET>"
                       make -C "$TF_DIR" init
-                      # Pi-hole rejects concurrent writes, so kube-addons applies one resource at a time
+                      # Pi-hole (kube-addons/prod) rejects concurrent writes, so apply one resource at a time
                       PARALLELISM=10
-                      if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then PARALLELISM=1; fi
+                      if [ "<+pipeline.variables.TARGET>" = "kube-addons/prod" ]; then PARALLELISM=1; fi
                       terraform -chdir="$TF_DIR" apply -input=false -auto-approve -lock-timeout=5m -parallelism="$PARALLELISM"
     - stage:
         name: Destroy
@@ -210,14 +213,15 @@ pipeline:
                       echo "$SSH_KNOWN_HOSTS_B64" | base64 -d > ~/.ssh/known_hosts
                       chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
                       # kube-addons providers read this fixed path
-                      if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then
+                      case "<+pipeline.variables.TARGET>" in kube-addons/*)
                         mkdir -p ~/.kube/talos-paul
                         echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/talos-paul/kubeconfig
                         chmod 600 ~/.kube/talos-paul/kubeconfig
-                      fi
+                        ;;
+                      esac
                       TF_DIR="<+pipeline.variables.TARGET>"
                       make -C "$TF_DIR" init
-                      # Pi-hole rejects concurrent writes, so kube-addons applies one resource at a time
+                      # Pi-hole (kube-addons/prod) rejects concurrent writes, so apply one resource at a time
                       PARALLELISM=10
-                      if [ "<+pipeline.variables.TARGET>" = "kube-addons" ]; then PARALLELISM=1; fi
+                      if [ "<+pipeline.variables.TARGET>" = "kube-addons/prod" ]; then PARALLELISM=1; fi
                       terraform -chdir="$TF_DIR" destroy -input=false -auto-approve -lock-timeout=5m -parallelism="$PARALLELISM"
