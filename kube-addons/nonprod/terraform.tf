@@ -18,14 +18,14 @@ terraform {
     }
   }
 
-  # State for kube-addons/nonprod lives in its own Harness IaCM workspace "homelabkubeaddonsnonprod".
+  # State for kube-addons/nonprod lives in its own Harness IaCM workspace "homelab-kube-addons-nonprod".
   # Never point two folders at one workspace. The token comes from TF_HTTP_PASSWORD.
   backend "http" {
-    address        = "https://app.harness.io/gateway/iacm/api/orgs/default/projects/visabulletin/workspaces/homelabkubeaddonsnonprod/terraform-backend?accountIdentifier=LzGbvkVKS72VH3cLnnJmSA"
+    address        = "https://app.harness.io/gateway/iacm/api/orgs/default/projects/visabulletin/workspaces/homelab-kube-addons-nonprod/terraform-backend?accountIdentifier=LzGbvkVKS72VH3cLnnJmSA"
     username       = "harness"
-    lock_address   = "https://app.harness.io/gateway/iacm/api/orgs/default/projects/visabulletin/workspaces/homelabkubeaddonsnonprod/terraform-backend/lock?accountIdentifier=LzGbvkVKS72VH3cLnnJmSA"
+    lock_address   = "https://app.harness.io/gateway/iacm/api/orgs/default/projects/visabulletin/workspaces/homelab-kube-addons-nonprod/terraform-backend/lock?accountIdentifier=LzGbvkVKS72VH3cLnnJmSA"
     lock_method    = "POST"
-    unlock_address = "https://app.harness.io/gateway/iacm/api/orgs/default/projects/visabulletin/workspaces/homelabkubeaddonsnonprod/terraform-backend/lock?accountIdentifier=LzGbvkVKS72VH3cLnnJmSA"
+    unlock_address = "https://app.harness.io/gateway/iacm/api/orgs/default/projects/visabulletin/workspaces/homelab-kube-addons-nonprod/terraform-backend/lock?accountIdentifier=LzGbvkVKS72VH3cLnnJmSA"
     unlock_method  = "DELETE"
   }
 }
