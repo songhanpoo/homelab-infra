@@ -1,10 +1,5 @@
 # CLAUDE.md
 
-> **Layout changed:** this folder is now two Terraform roots, `prod/` (platform tier) and
-> `nonprod/` (applications), each with its own `envs/`, Makefile and Harness workspace.
-> `charts/` and `../modules/` are shared. The scoped `*_TARGETS` Make variables, the R2 backend
-> and the single `envs/` tree described further down no longer exist.
-
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What this is
