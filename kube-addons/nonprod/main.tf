@@ -1,53 +1,3 @@
-module "traefik" {
-  source          = "../modules/traefik"
-  traefik_version = local.config.traefik.version
-  config_yaml     = file("${path.module}/envs/prod/platform/traefik.yaml")
-}
-
-module "dns" {
-  source  = "../modules/pihole-dns"
-  records = local.config.dns.records
-}
-
-resource "helm_release" "ingress-nginx-internal" {
-  name = local.config.ingress_nginx_internal.name
-
-  repository = local.config.ingress_nginx_internal.repository
-  chart      = local.config.ingress_nginx_internal.chart
-  namespace  = local.config.ingress_nginx_internal.namespace
-  version    = local.config.ingress_nginx_internal.version
-  wait       = false
-
-  set = [
-    {
-      name  = "controller.ingressClassResource.name"
-      value = local.config.ingress_nginx_internal.ingress_class_name
-    },
-    {
-      name  = "controller.ingressClassResource.controllerValue"
-      value = local.config.ingress_nginx_internal.controller_value
-    },
-    # Traefik terminates TLS and forwards X-Forwarded-Proto: https; without this nginx
-    # overwrites it with http and Nexus advertises an http:// Docker token realm.
-    {
-      name  = "controller.config.use-forwarded-headers"
-      value = "true"
-    },
-  ]
-}
-
-resource "helm_release" "csi-driver-nfs" {
-  name = local.config.csi_driver_nfs.name
-
-  repository      = local.config.csi_driver_nfs.repository
-  chart           = local.config.csi_driver_nfs.chart
-  namespace       = local.config.csi_driver_nfs.namespace
-  version         = local.config.csi_driver_nfs.version
-  wait            = false
-  upgrade_install = false
-
-}
-
 resource "helm_release" "nexus" {
   name            = local.config.nexus.name
   repository      = local.config.nexus.repository
@@ -164,11 +114,6 @@ resource "kubernetes_secret_v1" "visa_bulletin_dag_credentials_kestra" {
   data = kubernetes_secret_v1.visa_bulletin_dag_credentials.data
 }
 
-module "storage_classes" {
-  source          = "../modules/storage-class"
-  storage_classes = local.config.storage_classes
-}
-
 resource "kubernetes_secret_v1" "visa_bulletin_dag_credentials" {
   metadata {
     name      = "visa-bulletin-dag"
@@ -183,7 +128,6 @@ resource "kubernetes_secret_v1" "visa_bulletin_dag_credentials" {
     R2_SECRET_ACCESS_KEY = "13ddfd95f77f72996d2b080ff4c2ac50b158993ed4e2694cc938469fda03e488"
   }
 }
-
 
 resource "helm_release" "jenkins" {
   # envs/dev/kube-orchestrations/jenkins.yaml fully commented out => no "jenkins" key => destroyed.
@@ -309,30 +253,30 @@ data "kubernetes_secret_v1" "jenkins_credentials" {
   }
 }
 
-resource "kubernetes_secret_v1" "git_credentials" {
-  metadata {
-    name      = "git-credentials"
-    namespace = "kube-orchestrations"
-  }
+# resource "kubernetes_secret_v1" "git_credentials" {
+#   metadata {
+#     name      = "git-credentials"
+#     namespace = "kube-orchestrations"
+#   }
+#
+#   data = {
+#     "GIT_SYNC_USERNAME" = "songhanpoo"
+#     "GIT_SYNC_PASSWORD" = data.kubernetes_secret_v1.jenkins_credentials.data["GITHUB_TOKEN"]
+#     "GITSYNC_USERNAME"  = "songhanpoo"
+#     "GITSYNC_PASSWORD"  = data.kubernetes_secret_v1.jenkins_credentials.data["GITHUB_TOKEN"]
+#   }
+# }
 
-  data = {
-    "GIT_SYNC_USERNAME" = "songhanpoo"
-    "GIT_SYNC_PASSWORD" = data.kubernetes_secret_v1.jenkins_credentials.data["GITHUB_TOKEN"]
-    "GITSYNC_USERNAME"  = "songhanpoo"
-    "GITSYNC_PASSWORD"  = data.kubernetes_secret_v1.jenkins_credentials.data["GITHUB_TOKEN"]
-  }
-}
-
-resource "kubernetes_secret_v1" "git_ssh_key" {
-  metadata {
-    name      = "git-ssh-key"
-    namespace = "kube-orchestrations"
-  }
-
-  data = {
-    "gitSshKey" = data.kubernetes_secret_v1.jenkins_credentials.data["GITHUB_PRIVATE_KEY"]
-  }
-}
+# resource "kubernetes_secret_v1" "git_ssh_key" {
+#   metadata {
+#     name      = "git-ssh-key"
+#     namespace = "kube-orchestrations"
+#   }
+#
+#   data = {
+#     "gitSshKey" = data.kubernetes_secret_v1.jenkins_credentials.data["GITHUB_PRIVATE_KEY"]
+#   }
+# }
 
 # resource "helm_release" "thinkread" {
 #   name            = local.config.thinkread.name
@@ -372,26 +316,6 @@ resource "helm_release" "kestra" {
   ]
 
   depends_on = [module.kestra_db]
-}
-
-resource "kubernetes_namespace_v1" "kube-monitoring" {
-  metadata {
-    name = "kube-monitoring"
-  }
-}
-
-
-resource "helm_release" "metrics_server" {
-  name            = local.config.metrics_server.name
-  repository      = local.config.metrics_server.repository
-  chart           = local.config.metrics_server.chart
-  version         = local.config.metrics_server.version
-  namespace       = local.config.metrics_server.namespace
-  upgrade_install = true
-  wait            = false
-  values = [
-    yamlencode(local.config.metrics_server.values_yaml)
-  ]
 }
 
 # resource "helm_release" "supabase" {
@@ -445,7 +369,6 @@ resource "helm_release" "metrics_server" {
 #   ]
 # }
 
-
 # n8n is a powerful workflow automation tool that allows users to create and automate complex workflows using a visual interface. It supports a wide range of integrations with various services and applications, making it a versatile solution for automating tasks and processes across different platforms.
 # resource "helm_release" "n8n" {
 #   name       = local.config.n8n.name
@@ -458,8 +381,6 @@ resource "helm_release" "metrics_server" {
 #     yamlencode(local.config.n8n.values_yaml)
 #   ]
 # }
-
-
 
 # resource "helm_release" "drone" {
 #   name       = "drone"
@@ -540,7 +461,6 @@ resource "helm_release" "metrics_server" {
 #   ]
 # }
 
-
 # resource "nginxproxymanager_proxy_host" "ingress-internal-http" {
 #   domain_names            = ["*.localdev.me"]
 #   forward_scheme          = "http"
@@ -568,7 +488,6 @@ resource "helm_release" "metrics_server" {
 #   hsts_subdomains         = false
 #   http2_support           = true
 # }
-
 
 # resource "helm_release" "vault" {
 #   name            = "vault"
@@ -662,7 +581,7 @@ resource "helm_release" "metrics_server" {
 # module.floci below. Talos nodes have no Docker socket, which the chart's
 # "full" mode (needed for Lambda/RDS/ElastiCache/etc.) requires.
 # module "floci" {
-#   source = "../modules/floci"
+#   source = "../../modules/floci"
 # }
 
 resource "helm_release" "cloudflared" {
@@ -680,7 +599,7 @@ resource "helm_release" "cloudflared" {
 }
 
 module "airflow_db" {
-  source   = "../modules/pg-bootstrap"
+  source   = "../../modules/pg-bootstrap"
   app_name = "airflow"
 
   is_create_schema = false
@@ -701,7 +620,7 @@ module "airflow_db" {
 }
 
 module "visa_bulletin_db" {
-  source   = "../modules/pg-bootstrap"
+  source   = "../../modules/pg-bootstrap"
   app_name = "visa_bulletin"
 
   is_create_schema = true
@@ -722,7 +641,7 @@ module "visa_bulletin_db" {
 }
 
 module "kestra_db" {
-  source   = "../modules/pg-bootstrap"
+  source   = "../../modules/pg-bootstrap"
   app_name = "kestra"
 
   is_create_schema = true
