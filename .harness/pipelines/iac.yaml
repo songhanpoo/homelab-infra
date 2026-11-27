@@ -67,6 +67,7 @@ pipeline:
                       CONFIRM_DESTROY: <+pipeline.variables.CONFIRM_DESTROY>
                     command: |
                       set -eu
+                      echo "Building branch <+codebase.branch> at commit <+codebase.commitSha>"
                       # Stop early if a destroy run is not confirmed
                       if [ "$ACTION" = "destroy" ]; then
                         if [ "$CONFIRM_DESTROY" != "destroy-<+pipeline.variables.TARGET>" ]; then
@@ -146,6 +147,7 @@ pipeline:
                       KUBECONFIG_B64: <+secrets.getValue("kubeconfig_b64")>
                     command: |
                       set -eu
+                      echo "Building branch <+codebase.branch> at commit <+codebase.commitSha>"
                       apk add --no-cache make openssh-client >/dev/null
                       # SSH: libvirt (infra) and the remote Docker host (kube-addons)
                       mkdir -p ~/.ssh && chmod 700 ~/.ssh
@@ -196,6 +198,7 @@ pipeline:
                       CONFIRM_DESTROY: <+pipeline.variables.CONFIRM_DESTROY>
                     command: |
                       set -eu
+                      echo "Building branch <+codebase.branch> at commit <+codebase.commitSha>"
                       if [ "$CONFIRM_DESTROY" != "destroy-<+pipeline.variables.TARGET>" ]; then
                         echo "To destroy, set CONFIRM_DESTROY to: destroy-<+pipeline.variables.TARGET>" >&2; exit 1
                       fi
