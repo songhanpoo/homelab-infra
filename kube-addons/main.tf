@@ -292,6 +292,23 @@ resource "helm_release" "airflow" {
 #   }
 # }
 
+# "jenkins-credentials" already exists in the cluster and its values are kept out of this repo.
+# Terraform only reads it. The removed block drops the old resource from state WITHOUT deleting it.
+# On a new cluster, create this secret (GITHUB_TOKEN, GITHUB_PRIVATE_KEY) before planning.
+removed {
+  from = kubernetes_secret_v1.jenkins_credentials
+  lifecycle {
+    destroy = false
+  }
+}
+
+data "kubernetes_secret_v1" "jenkins_credentials" {
+  metadata {
+    name      = "jenkins-credentials"
+    namespace = "kube-orchestrations"
+  }
+}
+
 resource "kubernetes_secret_v1" "git_credentials" {
   metadata {
     name      = "git-credentials"
@@ -300,9 +317,9 @@ resource "kubernetes_secret_v1" "git_credentials" {
 
   data = {
     "GIT_SYNC_USERNAME" = "songhanpoo"
-    "GIT_SYNC_PASSWORD" = kubernetes_secret_v1.jenkins_credentials.data["GITHUB_TOKEN"]
+    "GIT_SYNC_PASSWORD" = data.kubernetes_secret_v1.jenkins_credentials.data["GITHUB_TOKEN"]
     "GITSYNC_USERNAME"  = "songhanpoo"
-    "GITSYNC_PASSWORD"  = kubernetes_secret_v1.jenkins_credentials.data["GITHUB_TOKEN"]
+    "GITSYNC_PASSWORD"  = data.kubernetes_secret_v1.jenkins_credentials.data["GITHUB_TOKEN"]
   }
 }
 
@@ -313,7 +330,7 @@ resource "kubernetes_secret_v1" "git_ssh_key" {
   }
 
   data = {
-    "gitSshKey" = kubernetes_secret_v1.jenkins_credentials.data["GITHUB_PRIVATE_KEY"]
+    "gitSshKey" = data.kubernetes_secret_v1.jenkins_credentials.data["GITHUB_PRIVATE_KEY"]
   }
 }
 

@@ -1,12 +1,4 @@
 TF=terraform
-# Physical R2 state object, pinned to the original "dev" key (changing it would make Terraform
-# read a different state file). prod and nonprod share this one state file by design.
-STATE_ENV ?= dev
-
-# Credentials come from the environment (export locally, or Harness secrets in CI):
-#   R2_ACCESS_KEY, R2_SECRET_KEY, R2_ACCOUNT_ID
-BUCKET_NAME ?= tf-remote-state
-R2_ENDPOINT = https://$(R2_ACCOUNT_ID).r2.cloudflarestorage.com
 
 # Scoped applies for envs/prod (cluster-wide/singleton infra) vs envs/nonprod (kube-orchestrations
 # apps) - see envs/prod/** and envs/nonprod/** . This is still ONE shared state file / ONE
@@ -47,21 +39,16 @@ NONPROD_TARGETS = -target=helm_release.nexus \
 	-target=kubernetes_secret.nexus_docker_registries_kestra \
 	-target=kubernetes_secret_v1.visa_bulletin_dag_credentials_kestra
 
+# State is stored in the Harness IaCM workspace "homelabkubeaddons" (backend "http" in terraform.tf).
+# Needs TF_HTTP_PASSWORD (a Harness API token) in the environment.
 init:
-	$(TF) init \
-		-backend-config="bucket=$(BUCKET_NAME)" \
-		-backend-config="region=auto" \
-		-backend-config="skip_credentials_validation=true" \
-		-backend-config="skip_metadata_api_check=true" \
-		-backend-config="skip_region_validation=true" \
-		-backend-config="skip_requesting_account_id=true" \
-		-backend-config="skip_s3_checksum=true" \
-		-backend-config="use_path_style=true" \
-		-backend-config="key='/paul/kube-addons/$(STATE_ENV)/terraform.tfstate'" \
-		-backend-config="access_key=$(R2_ACCESS_KEY)" \
-		-backend-config="secret_key=$(R2_SECRET_KEY)" \
-		-backend-config='endpoints={s3="$(R2_ENDPOINT)"}' \
-		-reconfigure
+	$(TF) init -input=false
+
+# One-time move of the old R2 state into Harness. Terraform asks before copying.
+# Do not use -reconfigure here: it switches backend without copying the state.
+.PHONY: migrate-state
+migrate-state:
+	$(TF) init -migrate-state
 
 lint:
 	$(TF) fmt -check -recursive
