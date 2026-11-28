@@ -1,0 +1,8 @@
+---
+# Loaded for every host because it sits beside the playbooks (locally and in Harness).
+# Ansible trusts only the host keys committed in ../known_hosts. A pipeline pod starts with none.
+# Don't switch host key checking off, and don't use accept-new: in a fresh pod it trusts any host.
+ansible_ssh_common_args: >-
+  -o UserKnownHostsFile="{{ playbook_dir }}/known_hosts"
+  -o GlobalKnownHostsFile=/dev/null
+  -o StrictHostKeyChecking=yes

@@ -60,7 +60,13 @@ Paste the file into a pipeline in project `visabulletin`. It runs on the `paulta
    On a host that isn't configured yet, a dry run can **fail** at a task that needs a package which isn't installed. That failure alone doesn't mean a real run will fail.
 2. Set `dry_run` to `false`, run, then set it back to `true`.
 
-The guide doesn't say how the step checks SSH host keys. If a run fails on host key verification, send the error before turning host key checking off.
+### SSH host keys
+A Harness pod starts with no trusted host keys, so without help a run fails with `Host key verification failed`. `known_hosts` holds the VMs' public host keys and `group_vars/all.yml` tells Ansible to trust only those. Leave host key checking on.
+
+After rebuilding a VM, its keys change and runs fail again, as they should:
+1. On the VM's **console** (not over SSH to it): `for f in /etc/ssh/ssh_host_*_key.pub; do ssh-keygen -lf "$f"; done`
+2. On your machine: `ssh-keyscan -t ed25519,ecdsa,rsa <ip> > /tmp/new_keys; ssh-keygen -lf /tmp/new_keys`
+3. Only if the fingerprints are the same, replace that VM's lines in `known_hosts`, commit and push.
 
 Redis listens on `127.0.0.1` only (`redis_bind_address`).
 
