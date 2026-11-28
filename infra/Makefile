@@ -7,10 +7,6 @@ export TMPDIR := /tmp/homelab-terraform
 # Created while make reads this file, because terraform init already needs TMPDIR to exist.
 TMPDIR_READY := $(shell mkdir -p $(TMPDIR) && chmod 700 $(TMPDIR))
 
-# The harness provider uses the same API token as the state backend unless you set another.
-HARNESS_PLATFORM_API_KEY ?= $(TF_HTTP_PASSWORD)
-export HARNESS_PLATFORM_API_KEY
-
 include ../terraform.mk
 
 CLOUDINIT_STATE = $(TMPDIR)/cloudinit-files.tfstate

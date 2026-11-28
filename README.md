@@ -12,6 +12,7 @@
 | `others/ansible/` | PostgreSQL and Redis roles, run by Harness IaCM Ansible ([setup](others/ansible/README.md)) | `.harness/pipelines/ansible.yaml` (input `PLAYBOOK`) |
 | `others/` | Otherwise unmaintained / parked: `airflow-dags`, `jenkins-inventory`, `crawl4ai`, `vault-examples`, `misc` | none |
 | `manifest.yaml` | Repository metadata and the Trivy scan settings the pipeline reads | |
+| `deploy/` | Helm chart and service settings for the CD pipeline ([guide](deploy/README.md)) | `.harness/pipelines/cd.yaml` |
 | `.harness/` | Harness pipeline definition (Plan -> Scan -> Approve -> Execute) and the scripts it runs | |
 
 `kube-addons/prod` and `kube-addons/nonprod` are two tiers of the **same cluster**, not separate environments. Each folder (and `infra/`) has its own state in its own Harness IaCM workspace. Apply `infra`, then `kube-addons/prod`, then `databases/`, then `kube-addons/nonprod`; destroy in reverse.
@@ -35,30 +36,13 @@ Editing cloud-init settings does **not** update the ISO volume on the host (`ign
 
 Terraform no longer writes `kubeconfig` and `talosconfig`. Run `make -C infra kubeconfig` to write them to `~/.kube/talos-paul/` and `~/.talos/talos-paul/`. This replaces the files there.
 
-## Pipelines from Git
+## Pipelines and triggers from Git
 
-`infra/harness-pipeline.tf` onboards the pipelines listed under `harness.pipelines` in `infra/envs/nonprod.yaml` as Remote pipelines (connector `songhanpoo`, branch `master`). **Git is the source of truth.** Terraform only creates them (`ignore_changes = all`): edit the YAML through Git. Changing a name, path or branch in `nonprod.yaml` afterwards does nothing.
+`infra/harness-pipeline.tf` uses `modules/harness-pipeline` to onboard operation, CI and CD pipelines as Remote pipelines, with GitHub push and cron triggers. Everything is configured in `infra/envs/nonprod.yaml` and starts disabled. Rules, prerequisites and rollout: [modules/harness-pipeline/README.md](modules/harness-pipeline/README.md).
 
-### First-time onboarding (replaces the Inline pipelines)
+## Application deployment (CD)
 
-Do this from your own machine: the `iacm` pipeline doesn't exist during step 5.
-
-1. Merge the pull request, and check both files are on `master`.
-2. In Harness, copy the YAML of the Inline `iacm` and `ansible` pipelines, save the copies, and compare them with the files. **Changes made only in Harness would be lost**; add them to Git first.
-3. Set the branch of the three Ansible playbooks to `master`.
-4. Delete the two Inline pipelines. Their run history may no longer be reachable.
-5. Set `enabled: true` for both in `nonprod.yaml`. Then, in `infra/`, with `TF_HTTP_PASSWORD` set to a token that may create pipelines:
-   ```sh
-   make init
-   make plan PLAN_ARGS="-target=harness_platform_pipeline.this -out=/tmp/homelab-terraform/pipelines.tfplan"
-   ```
-   Expect **2 to add** and nothing else. Then `make apply PLANFILE=/tmp/homelab-terraform/pipelines.tfplan`, and delete the plan file.
-6. In Harness, check both show as stored in Git on `master`, and run `iacm` with `ACTION=plan`. Commit and merge the `enabled: true` change, or the next pipeline run would try to remove them and be blocked.
-
-If the import fails, recreate the Inline pipeline from your saved copy.
-
-- Deleting is blocked (`prevent_destroy`), including `destroy` of `infra`. To stop managing one: `terraform state rm 'harness_platform_pipeline.this["<identifier>"]'`, then set `enabled: false`.
-- To add a pipeline: add its YAML to Git on `master`, then an entry whose key equals the YAML `identifier`.
+The `k8sdeploy` pipeline deploys images built by CI with Helm, using an account limited to the app namespaces: [deploy/README.md](deploy/README.md).
 
 ## Cluster credentials in Harness secrets
 

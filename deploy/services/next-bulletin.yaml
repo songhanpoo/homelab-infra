@@ -1,0 +1,26 @@
+# One file per service; the file name is the SERVICE value and the Helm release name.
+# Read by .harness/scripts/deploy.sh (namespace, chart values) and by
+# kube-addons/nonprod/cd-deployer.tf (namespace). No secret values: this repository is public.
+#
+# To add a service: add a file here, add its name to SERVICE in .harness/pipelines/cd.yaml,
+# apply kube-addons/nonprod, and add a DNS record in kube-addons/prod.
+namespace: next-bulletin
+
+image:
+  repository: nexus-docker-private.local.proxy/next-bulletin
+containerPort: 3000
+host: next-bulletin.localdev.me
+envSecretName: next-bulletin-env
+# "adduser -S appuser" on node:22-alpine gives 100:101, as in the app's Dockerfile.
+runAsUser: 100
+runAsGroup: 101
+writableDirs:
+  - /tmp
+  - /app/.next/cache
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi

@@ -1,0 +1,116 @@
+# CD: deploys an image that CI already pushed. Started by CI chaining or by hand.
+# Flow: Render (server dry run) -> Approve -> Deploy (helm upgrade --install, rolled back if the
+# rollout fails). Logic: .harness/scripts/deploy.sh. Setup: deploy/README.md.
+#
+# The code always comes from master of this repository, whatever started the run. Run inputs are
+# only a service name and a commit tag; the image repository and namespace come from
+# deploy/services/<SERVICE>.yaml.
+# Needs the secret cd_kubeconfig_b64: an account limited to the application namespaces
+# (kube-addons/nonprod/cd-deployer.tf). Not the cluster admin kubeconfig.
+pipeline:
+  name: k8s-deploy
+  identifier: k8sdeploy
+  projectIdentifier: visabulletin
+  orgIdentifier: default
+  tags:
+    kind: cd
+  properties:
+    ci:
+      codebase:
+        connectorRef: songhanpoo
+        repoName: homelab-infra
+        build:
+          type: branch
+          spec:
+            branch: master
+  variables:
+    - name: SERVICE
+      type: String
+      description: A file in deploy/services/
+      value: <+input>.allowedValues(next-bulletin)
+    - name: IMAGE_TAG
+      type: String
+      description: Commit tag of the image CI pushed, for example 1a2b3c4
+      value: <+input>
+  stages:
+    - stage:
+        name: Render
+        identifier: render
+        type: CI
+        spec:
+          cloneCodebase: true
+          infrastructure:
+            type: KubernetesDirect
+            spec:
+              connectorRef: paultalos # Kubernetes connector on the LAN delegate
+              namespace: harness-executions
+          execution:
+            steps:
+              - step:
+                  name: render and dry run
+                  identifier: helm_render
+                  type: Run
+                  spec:
+                    connectorRef: nexusdocker
+                    image: alpine/helm:3.19.0@sha256:aef9b56f64e866207d9591d0abd8f6d767b36aadd12edf68f8a719716d9d29c9
+                    shell: Sh
+                    envVariables:
+                      SERVICE: <+pipeline.variables.SERVICE>
+                      IMAGE_TAG: <+pipeline.variables.IMAGE_TAG>
+                      KUBECONFIG_B64: <+secrets.getValue("cd_kubeconfig_b64")>
+                    command: |
+                      set -eu
+                      sh .harness/scripts/deploy.sh render /tmp/render.env
+                      . /tmp/render.env
+                      export RENDER_FINGERPRINT
+                    outputVariables:
+                      - name: RENDER_FINGERPRINT
+    - stage:
+        name: Approve
+        identifier: approve
+        type: Approval
+        spec:
+          execution:
+            steps:
+              - step:
+                  name: Approve deployment
+                  identifier: approve_deploy
+                  type: HarnessApproval
+                  timeout: 1d
+                  spec:
+                    approvalMessage: "Deploy <+pipeline.variables.SERVICE> with image tag <+pipeline.variables.IMAGE_TAG>? Check the manifests in the Render log."
+                    includePipelineExecutionHistory: true
+                    approvers:
+                      userGroups:
+                        - account._account_all_users
+                      minimumCount: 1
+                      disallowPipelineExecutor: false
+    - stage:
+        name: Deploy
+        identifier: deploy
+        type: CI
+        spec:
+          cloneCodebase: true
+          infrastructure:
+            type: KubernetesDirect
+            spec:
+              connectorRef: paultalos # Kubernetes connector on the LAN delegate
+              namespace: harness-executions
+          execution:
+            steps:
+              - step:
+                  name: helm upgrade
+                  identifier: helm_deploy
+                  type: Run
+                  spec:
+                    connectorRef: nexusdocker
+                    image: alpine/helm:3.19.0@sha256:aef9b56f64e866207d9591d0abd8f6d767b36aadd12edf68f8a719716d9d29c9
+                    shell: Sh
+                    envVariables:
+                      SERVICE: <+pipeline.variables.SERVICE>
+                      IMAGE_TAG: <+pipeline.variables.IMAGE_TAG>
+                      KUBECONFIG_B64: <+secrets.getValue("cd_kubeconfig_b64")>
+                      RENDER_FINGERPRINT: <+pipeline.stages.render.spec.execution.steps.helm_render.output.outputVariables.RENDER_FINGERPRINT>
+                    command: |
+                      set -eu
+                      sh .harness/scripts/deploy.sh deploy

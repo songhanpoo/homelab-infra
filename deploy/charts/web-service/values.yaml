@@ -1,0 +1,27 @@
+# Defaults. Per-service settings live in deploy/services/<name>.yaml.
+image:
+  repository: ""
+  tag: "" # set by the deploy script: the commit tag pushed by CI
+  pullPolicy: IfNotPresent
+replicas: 1
+containerPort: 3000
+host: "" # ingress host name
+ingressClassName: nginx-internal
+# Name of an existing Secret in the namespace whose keys become environment variables.
+# It is created by hand (see deploy/README.md). No secret values belong in this repository.
+envSecretName: ""
+env: {} # plain, non-secret settings
+# The image must run as this numeric user (Kubernetes can't verify a user name).
+runAsUser: 1000
+runAsGroup: 1000
+# The root filesystem is read-only; these are the only writable folders (emptied with the pod).
+writableDirs:
+  - /tmp
+command: [] # leave empty to use the image's own command
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi

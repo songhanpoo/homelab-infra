@@ -11,6 +11,10 @@
 # Must come before any other include: the folder that holds this file.
 REPO_ROOT := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
 
+# The harness provider uses the same API token as the state backend unless you set another.
+HARNESS_PLATFORM_API_KEY ?= $(TF_HTTP_PASSWORD)
+export HARNESS_PLATFORM_API_KEY
+
 TF ?= terraform
 # "init" downloads providers, through Nexus when it is available (NEXUS=auto|1|0).
 TF_INIT = sh $(REPO_ROOT)/scripts/tf-registry.sh $(TF)

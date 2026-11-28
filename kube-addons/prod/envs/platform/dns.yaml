@@ -17,3 +17,4 @@ dns:
     # outline.localdev.me: "192.168.1.98"
     crawl4ai.localdev.me: "192.168.1.98"
     kestra.localdev.me: "192.168.1.98"
+    next-bulletin.localdev.me: "192.168.1.98" # deployed by the k8s-deploy pipeline

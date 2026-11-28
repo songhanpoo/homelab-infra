@@ -1,5 +1,9 @@
 terraform {
   required_providers {
+    harness = {
+      source  = "harness/harness"
+      version = "0.47.8"
+    }
     helm = {
       source  = "hashicorp/helm"
       version = "3.1.1"

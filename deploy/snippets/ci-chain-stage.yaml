@@ -1,0 +1,23 @@
+# Add as the LAST entry under "stages:" in next-bulletin's .harness/cots-build.yaml.
+# It starts the k8s-deploy pipeline with the tag this build pushed, only for the release branch.
+# k8s-deploy then waits for approval, so this CI run stays open until it is approved or times out.
+    - stage:
+        name: Deploy
+        identifier: deploy
+        type: Pipeline
+        when:
+          pipelineStatus: Success
+          condition: <+codebase.branch> == "<+pipeline.stages.Checkout.spec.execution.steps.read_manifest.output.outputVariables.RELEASE_BRANCH>"
+        spec:
+          org: default
+          project: visabulletin
+          pipeline: k8sdeploy
+          inputs:
+            identifier: k8sdeploy
+            variables:
+              - name: SERVICE
+                type: String
+                value: next-bulletin
+              - name: IMAGE_TAG
+                type: String
+                value: <+pipeline.stages.Checkout.spec.execution.steps.read_manifest.output.outputVariables.GIT_APP_SHA>
