@@ -13,10 +13,12 @@ spec:
       {{- include "crawl4ai.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
       annotations:
+        # restarts the pod when the supervisor config changes
+        checksum/supervisord: {{ .Files.Get "files/supervisord.conf" | sha256sum }}
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
       labels:
         {{- include "crawl4ai.labels" . | nindent 8 }}
         {{- with .Values.podLabels }}
@@ -77,6 +79,14 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
+            - name: supervisord
+              mountPath: /app/supervisord.conf
+              subPath: supervisord.conf
+              readOnly: true
+            {{- range .Values.writableDirs }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+            {{- end }}
             {{- if .Values.crawl4ai.config.enabled }}
             {{- if .Values.crawl4ai.config.existingConfigMap }}
             - name: config
@@ -89,6 +99,14 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
       volumes:
+        - name: supervisord
+          configMap:
+            name: {{ include "crawl4ai.fullname" . }}-supervisord
+        {{- range .Values.writableDirs }}
+        - name: {{ .name }}
+          emptyDir:
+            sizeLimit: {{ .sizeLimit }}
+        {{- end }}
         {{- if .Values.crawl4ai.config.enabled }}
         {{- if .Values.crawl4ai.config.existingConfigMap }}
         - name: config

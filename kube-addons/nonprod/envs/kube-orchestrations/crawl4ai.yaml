@@ -1,7 +1,7 @@
 crawl4ai:
   name: "crawl4ai"
   chart: "./charts/crawl4ai"
-  version: "0.1.0"
+  version: "0.2.0" # must match Chart.yaml; bump both when the local chart changes
   namespace: "kube-orchestrations"
   values_yaml:
     ingress:
