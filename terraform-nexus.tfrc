@@ -1,0 +1,9 @@
+# Terraform CLI config that sends registry.terraform.io requests to the Nexus "terraform-proxy"
+# repository. Used only through scripts/tf-registry.sh. Provider source addresses and lock files
+# stay the same, so downloads are still checked against the locked checksums.
+host "registry.terraform.io" {
+  services = {
+    "providers.v1" = "https://nexus.local.proxy/repository/terraform-proxy/v1/providers/"
+    "modules.v1"   = "https://nexus.local.proxy/repository/terraform-proxy/v1/modules/"
+  }
+}

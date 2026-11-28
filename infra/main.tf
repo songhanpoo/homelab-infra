@@ -36,3 +36,20 @@ module "virtual-machine" {
     image_name = local.configs.databases.image.name
   }
 }
+
+# kubeconfig and talosconfig are no longer local_file resources: they existed only on the machine
+# that ran Terraform, so every fresh pipeline job planned to create them. Forget them without
+# deleting the files. Write them with "make kubeconfig".
+removed {
+  from = module.talos.local_file.kubeconfig
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = module.talos.local_file.talosconfig
+  lifecycle {
+    destroy = false
+  }
+}

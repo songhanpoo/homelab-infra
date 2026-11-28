@@ -399,21 +399,3 @@ resource "talos_cluster_kubeconfig" "this" {
   node                 = [for k, v in var.nodes : v.ip if v.machine_type == "controlplane"][0]
   depends_on           = [data.talos_cluster_health.this]
 }
-
-resource "local_file" "kubeconfig" {
-  content              = talos_cluster_kubeconfig.this.kubeconfig_raw
-  filename             = "${pathexpand("~")}/.kube/${var.cluster.name}/kubeconfig"
-  directory_permission = "0755"
-  file_permission      = "0600"
-
-  depends_on = [talos_cluster_kubeconfig.this]
-}
-
-resource "local_file" "talosconfig" {
-  content              = data.talos_client_configuration.this.talos_config
-  filename             = "${pathexpand("~")}/.talos/${var.cluster.name}/talosconfig"
-  directory_permission = "0755"
-  file_permission      = "0600"
-
-  depends_on = [data.talos_client_configuration.this]
-}

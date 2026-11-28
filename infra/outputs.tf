@@ -13,3 +13,8 @@ output "kubeconfig_raw" {
   sensitive = true
 }
 
+
+output "talosconfig" {
+  value     = module.talos.client_configuration.talos_config
+  sensitive = true
+}

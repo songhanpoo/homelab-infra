@@ -18,10 +18,9 @@ fail() { echo "ERROR: $*" >&2; exit 1; }
 # What each target needs. A new root is added here and in the pipeline's TARGET list.
 NEEDS_SSH=no
 NEEDS_KUBE=no
-PARALLELISM=10
 case "${TARGET:?}" in
-  infra)               NEEDS_SSH=yes ;;                               # libvirt over SSH
-  kube-addons/prod)    NEEDS_SSH=yes; NEEDS_KUBE=yes; PARALLELISM=1 ;; # remote Docker; Pi-hole rejects concurrent writes
+  infra)               NEEDS_SSH=yes ;;                 # libvirt over SSH
+  kube-addons/prod)    NEEDS_SSH=yes; NEEDS_KUBE=yes ;; # remote Docker and the cluster
   kube-addons/nonprod) NEEDS_KUBE=yes ;;
   databases/nonprod)   ;;                                             # connects to PostgreSQL only
   *) fail "unknown TARGET '$TARGET'" ;;
@@ -39,7 +38,7 @@ if grep -Eq 'backend "http" \{\}' "$TARGET/terraform.tf"; then
 fi
 
 if command -v apk >/dev/null 2>&1; then
-  apk add --no-cache make openssh-client jq >/dev/null
+  apk add --no-cache make openssh-client jq curl >/dev/null
 fi
 
 umask 077
@@ -59,28 +58,22 @@ trap 'rm -rf "$WORK"' EXIT   # plan files hold secrets
 COMMIT=$(git -c safe.directory='*' rev-parse HEAD)
 echo "Target $TARGET, action $ACTION, commit $COMMIT"
 
-if [ "$MODE" = plan ]; then
-  terraform -chdir="$TARGET" fmt -check -recursive
-  terraform fmt -check -recursive modules
-fi
-make -C "$TARGET" init
-terraform -chdir="$TARGET" validate
+# Lets "terraform init" trust the Nexus proxy certificate (see scripts/tf-registry.sh).
+export TF_NEXUS_CA="$PWD/certs/local-proxy.crt"
 
-set -- -input=false -lock-timeout=5m -detailed-exitcode -out="$WORK/tfplan"
-if [ "$ACTION" = destroy ]; then set -- "$@" -destroy; fi
-RC=0
-terraform -chdir="$TARGET" plan "$@" || RC=$?
-case "$RC" in
-  0) HAS_CHANGES=false ;;
-  2) HAS_CHANGES=true ;;
-  *) fail "terraform plan failed (exit $RC)" ;;
-esac
+# The same make targets as a local run. Per-root settings live in each root's Makefile.
+make -C "$TARGET" init
+make -C "$TARGET" check
+
+PLAN_ARGS="-input=false -lock-timeout=5m -out=$WORK/tfplan"
+if [ "$ACTION" = destroy ]; then PLAN_ARGS="$PLAN_ARGS -destroy"; fi
+make -C "$TARGET" plan PLAN_ARGS="$PLAN_ARGS" || fail "terraform plan failed"
 
 # The summary holds addresses and actions only, never values.
 terraform -chdir="$TARGET" show -json "$WORK/tfplan" > "$WORK/plan.json"
 jq -r '
   [ (.resource_changes // [])[]
-    | select(.change.actions != ["no-op"] and .change.actions != ["read"])
+    | select((.change.actions != ["no-op"] and .change.actions != ["read"]) or .previous_address != null)
     | (.change.actions | join(",")) + " " + .address ]
   + [ (.output_changes // {}) | to_entries[]
       | select(.value.actions != ["no-op"])
@@ -90,6 +83,9 @@ jq -r '
 echo "----- change summary: $TARGET -----"
 if [ -s "$WORK/summary" ]; then cat "$WORK/summary"; else echo "no changes"; fi
 echo "-----------------------------------"
+
+# make reports every failure as exit 2, so the summary (not -detailed-exitcode) shows if anything changes.
+if [ -s "$WORK/summary" ]; then HAS_CHANGES=true; else HAS_CHANGES=false; fi
 
 # Same commit, target, action and list of changes. It does not compare the new values.
 FINGERPRINT=$( { echo "$COMMIT $TARGET $ACTION"; cat "$WORK/summary"; } | sha256sum | cut -d' ' -f1)
@@ -105,6 +101,6 @@ case "$MODE" in
     [ "$ACTION" != plan ] || fail "ACTION=plan never applies"
     [ "$FINGERPRINT" = "${PLAN_FINGERPRINT:?}" ] ||
       fail "the commit or the list of changes differs from the approved plan. Nothing was changed; run the pipeline again."
-    terraform -chdir="$TARGET" apply -input=false -lock-timeout=5m -parallelism="$PARALLELISM" "$WORK/tfplan"
+    make -C "$TARGET" apply PLANFILE="$WORK/tfplan" APPLY_ARGS="-input=false -lock-timeout=5m"
     ;;
 esac
