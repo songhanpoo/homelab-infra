@@ -21,8 +21,8 @@
 # Execute plans again and stops unless the commit and the list of changes (addresses and
 # actions, not values) match what Plan showed. It then applies exactly that new plan file.
 #
-# The pipeline is stored Inline in Harness: after editing this file, paste it into Harness again.
-# Script changes need only a push.
+# Storage: once onboarded by infra/harness-pipeline.tf, Harness reads this file from Git (master),
+# so merge changes there. While the pipeline is still Inline in Harness, paste edits in again.
 # Harness text secrets: harness_api_token (state; access to every workspace above),
 #   ssh_private_key_b64, ssh_known_hosts_b64, kubeconfig_b64. Encode: base64 < file | tr -d '\n'
 pipeline:

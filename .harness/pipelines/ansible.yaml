@@ -6,7 +6,8 @@
 # Every Playbook is a dry run unless its dry_run variable is "false". Real PostgreSQL changes also
 # need postgres_confirm=apply-postgres. The inventory has no "postgres" host on purpose: until it is
 # added, the postgres part matches no hosts and does nothing, even though the run can succeed.
-# The pipeline is stored Inline in Harness: paste it again after editing.
+# Storage: once onboarded by infra/harness-pipeline.tf, Harness reads this file from Git (master).
+# While the pipeline is still Inline in Harness, paste edits in again.
 pipeline:
   name: ansible
   identifier: ansible

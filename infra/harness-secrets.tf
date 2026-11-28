@@ -9,8 +9,8 @@
 # and remove the import block below until the secret is to be managed again.
 
 locals {
-  harness_org     = "default"
-  harness_project = "visabulletin"
+  harness_org     = local.configs.harness.org_id
+  harness_project = local.configs.harness.project_id
 }
 
 # kubeconfig_b64 was first created by hand: take it over instead of creating it.

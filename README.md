@@ -35,6 +35,31 @@ Editing cloud-init settings does **not** update the ISO volume on the host (`ign
 
 Terraform no longer writes `kubeconfig` and `talosconfig`. Run `make -C infra kubeconfig` to write them to `~/.kube/talos-paul/` and `~/.talos/talos-paul/`. This replaces the files there.
 
+## Pipelines from Git
+
+`infra/harness-pipeline.tf` onboards the pipelines listed under `harness.pipelines` in `infra/envs/nonprod.yaml` as Remote pipelines (connector `songhanpoo`, branch `master`). **Git is the source of truth.** Terraform only creates them (`ignore_changes = all`): edit the YAML through Git. Changing a name, path or branch in `nonprod.yaml` afterwards does nothing.
+
+### First-time onboarding (replaces the Inline pipelines)
+
+Do this from your own machine: the `iacm` pipeline doesn't exist during step 5.
+
+1. Merge the pull request, and check both files are on `master`.
+2. In Harness, copy the YAML of the Inline `iacm` and `ansible` pipelines, save the copies, and compare them with the files. **Changes made only in Harness would be lost**; add them to Git first.
+3. Set the branch of the three Ansible playbooks to `master`.
+4. Delete the two Inline pipelines. Their run history may no longer be reachable.
+5. Set `enabled: true` for both in `nonprod.yaml`. Then, in `infra/`, with `TF_HTTP_PASSWORD` set to a token that may create pipelines:
+   ```sh
+   make init
+   make plan PLAN_ARGS="-target=harness_platform_pipeline.this -out=/tmp/homelab-terraform/pipelines.tfplan"
+   ```
+   Expect **2 to add** and nothing else. Then `make apply PLANFILE=/tmp/homelab-terraform/pipelines.tfplan`, and delete the plan file.
+6. In Harness, check both show as stored in Git on `master`, and run `iacm` with `ACTION=plan`. Commit and merge the `enabled: true` change, or the next pipeline run would try to remove them and be blocked.
+
+If the import fails, recreate the Inline pipeline from your saved copy.
+
+- Deleting is blocked (`prevent_destroy`), including `destroy` of `infra`. To stop managing one: `terraform state rm 'harness_platform_pipeline.this["<identifier>"]'`, then set `enabled: false`.
+- To add a pipeline: add its YAML to Git on `master`, then an entry whose key equals the YAML `identifier`.
+
 ## Cluster credentials in Harness secrets
 
 `infra/harness-secrets.tf` keeps two project secrets current from the Talos module, base64 on one line:

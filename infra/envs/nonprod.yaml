@@ -316,3 +316,27 @@ databases:
 
     # #     # Final message on console
     # #     final_message: "ollama server is ready! SSH: ssh root@<IP>"
+
+# Harness objects managed from infra/ (harness-secrets.tf and harness-pipeline.tf).
+harness:
+  org_id: default
+  project_id: visabulletin
+  git:
+    connector_ref: songhanpoo # project-level GitHub connector
+    repo_name: homelab-infra
+    branch: master
+  # Pipelines Harness reads from Git (Remote). The key is the pipeline identifier, and must equal
+  # "identifier" in the YAML file. Terraform only onboards them: afterwards edit the file in Git.
+  # Keep enabled: false until the file is on the branch above and no Inline pipeline has the same
+  # identifier (see README, "Pipelines from Git"). Setting an onboarded one back to false is blocked.
+  pipelines:
+    iacm:
+      enabled: false
+      name: iacm
+      description: Terraform plan, scan, approve and apply for this repository
+      file_path: .harness/pipelines/iac.yaml
+    ansible:
+      enabled: false
+      name: ansible
+      description: IaCM Ansible for others/ansible
+      file_path: .harness/pipelines/ansible.yaml
