@@ -10,7 +10,7 @@
 | `kube-addons/charts/` | Local Helm charts (`nonprod/charts` links here) | |
 | `modules/` | Terraform modules for both roots, referenced as `../modules/<name>` | `.harness/pipelines/iac.yaml` (format check) |
 | `others/` | Unmaintained / parked: `ansible`, `airflow-dags`, `jenkins-inventory`, `crawl4ai`, `vault-examples`, `misc` | none |
-| `.harness/` | Harness pipeline definition (Plan -> Approve -> Execute) and the script it runs | |
+| `.harness/` | Harness pipeline definition (Plan -> Scan -> Approve -> Execute) and the scripts it runs | |
 
 `kube-addons/prod` and `kube-addons/nonprod` are two tiers of the **same cluster**, not separate environments. Each folder (and `infra/`) has its own state in its own Harness IaCM workspace. Apply `infra`, then `kube-addons/prod`, then `databases/`, then `kube-addons/nonprod`; destroy in reverse.
 
@@ -46,6 +46,17 @@ Terraform no longer writes `kubeconfig` and `talosconfig`. Run `make -C infra ku
 `applied` appears only after a successful apply or destroy. After a failed one, read the log to see what completed.
 
 Annotations need the `CI_ENABLE_HARNESS_ANNOTATIONS` and `PIPE_HARNESS_ANNOTATIONS` feature flags; ask Harness Support to enable them. Without `hcli` in the step, the log says so and the run continues.
+
+## Trivy scan before approval
+
+The pipeline runs Plan -> **Scan** -> Approve -> Execute. `.harness/scripts/trivy-scan.sh` scans the target's `.tf` files, the modules they use, and local Helm charts referenced by the target's env files. Charts are rendered with their **own default values**, not the values Terraform deploys. Remote charts (Nexus, Kestra and others) are not scanned. This is a misconfiguration scan only: no secret or image scanning.
+
+**A clean Terraform result is weak evidence.** Trivy has few or no checks for libvirt, Talos, Pi-hole or PostgreSQL. In testing it caught an open AWS rule but missed a privileged Kubernetes pod written in Terraform and a `root:password` cloud-init.
+
+- `SCAN_FAIL_ON`: `high` (default, HIGH and CRITICAL), `critical`, or `none`. A failed scan stops Approve and Execute. `ACTION=destroy` skips the scan.
+- Accept a finding by adding its ID to `.trivyignore` at the repo root, with a comment saying why. An ID there is ignored for **every** target.
+- Findings go to Harness as SARIF through the STO `CustomIngest` step. If that step fails, it is ignored and the gate still applies; the findings are also in the `trivy scan` log.
+- The image is pinned by digest and runs offline with its built-in checks. Trivy 0.69.4-0.69.6 releases were malicious (CVE-2026-33634): never use a floating tag, and verify a new version and digest before updating.
 
 ## Provider downloads through Nexus
 

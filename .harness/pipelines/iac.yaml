@@ -9,8 +9,13 @@
 # Create or update in the order above. Destroy in the reverse order.
 # After infra rebuilds the cluster, update the kubeconfig_b64 secret before running kube-addons.
 #
-# Flow: Plan -> Approve -> Execute. ACTION=plan stops after Plan, and a plan with no changes
-# skips the other two stages. destroy needs CONFIRM_DESTROY=destroy-<TARGET>.
+# Flow: Plan -> Scan -> Approve -> Execute. ACTION=plan stops after Scan, and a plan with no changes
+# skips Approve and Execute.
+# Scan runs Trivy (.harness/scripts/trivy-scan.sh), sends the findings to Harness and then fails
+# on findings at or above SCAN_FAIL_ON, which blocks Approve and Execute. destroy skips Scan.
+# Sending findings needs the STO CustomIngest step; if that step fails, the gate still applies.
+# Keep the Trivy image pinned by digest: releases 0.69.4-0.69.6 were malicious (CVE-2026-33634).
+# destroy needs CONFIRM_DESTROY=destroy-<TARGET>.
 # The Tests tab lists resource changes (not tests): planned, then applied after a successful run.
 # Execute plans again and stops unless the commit and the list of changes (addresses and
 # actions, not values) match what Plan showed. It then applies exactly that new plan file.
@@ -41,6 +46,10 @@ pipeline:
       type: String
       description: plan = plan only. apply or destroy = plan, approve, then run it
       value: <+input>.allowedValues(plan,apply,destroy)
+    - name: SCAN_FAIL_ON
+      type: String
+      description: Trivy findings that block approval. high = HIGH and CRITICAL
+      value: <+input>.default(high).allowedValues(high,critical,none)
     - name: CONFIRM_DESTROY
       type: String
       description: Only for destroy. Type destroy-<TARGET>, e.g. destroy-infra or destroy-kube-addons/nonprod
@@ -89,6 +98,74 @@ pipeline:
                       - name: HAS_CHANGES
                       - name: PLAN_FINGERPRINT
     - stage:
+        name: Scan
+        identifier: scan
+        type: CI
+        when:
+          pipelineStatus: Success
+          condition: <+pipeline.variables.ACTION> != "destroy"
+        spec:
+          cloneCodebase: true   # its own pod: no credentials and no shared files with Plan
+          sharedPaths:
+            - /shared/scan_results
+          infrastructure:
+            type: KubernetesDirect
+            spec:
+              connectorRef: paultalos
+              namespace: harness-executions
+          execution:
+            steps:
+              - step:
+                  name: trivy scan
+                  identifier: trivy_scan
+                  type: Run
+                  spec:
+                    connectorRef: nexusdocker
+                    image: aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+                    shell: Sh
+                    envVariables:
+                      TARGET: <+pipeline.variables.TARGET>
+                    command: |
+                      set -eu
+                      sh .harness/scripts/trivy-scan.sh scan /shared/scan_results
+              - step:
+                  name: send findings to Harness
+                  identifier: trivy_ingest
+                  type: CustomIngest
+                  spec:
+                    mode: ingestion
+                    config: sarif
+                    target:
+                      type: repository
+                      detection: manual
+                      name: homelab-infra <+pipeline.variables.TARGET>
+                      variant: <+codebase.branch>
+                    advanced:
+                      log:
+                        level: info
+                      fail_on_severity: none   # the gate step below decides, even if this step fails
+                    ingestion:
+                      file: /shared/scan_results/trivy.sarif
+                  failureStrategies:
+                    - onFailure:
+                        errors:
+                          - AllErrors
+                        action:
+                          type: Ignore
+              - step:
+                  name: trivy gate
+                  identifier: trivy_gate
+                  type: Run
+                  spec:
+                    connectorRef: nexusdocker
+                    image: aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+                    shell: Sh
+                    envVariables:
+                      SCAN_FAIL_ON: <+pipeline.variables.SCAN_FAIL_ON>
+                    command: |
+                      set -eu
+                      sh .harness/scripts/trivy-scan.sh gate /shared/scan_results
+    - stage:
         name: Approve
         identifier: approve
         type: Approval
@@ -104,7 +181,7 @@ pipeline:
                   type: HarnessApproval
                   timeout: 1d
                   spec:
-                    approvalMessage: "ACTION=<+pipeline.variables.ACTION> on <+pipeline.variables.TARGET>. Check the changes on the Tests tab, or the change summary at the end of the Plan log, before approving. Destroy permanently deletes resources and data."
+                    approvalMessage: "ACTION=<+pipeline.variables.ACTION> on <+pipeline.variables.TARGET>. Check the changes on the Tests tab, or the change summary at the end of the Plan log, before approving. Check the Trivy results from the Scan stage too (destroy runs skip it). Destroy permanently deletes resources and data."
                     includePipelineExecutionHistory: true
                     approvers:
                       userGroups:
