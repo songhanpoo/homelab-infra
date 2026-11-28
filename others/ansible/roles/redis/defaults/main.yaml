@@ -1,7 +1,8 @@
 ---
 redis_port: 6379
 redis_bind_address: "127.0.0.1" # Change to "0.0.0.0" only if remote systems need direct access
-redis_password: "ChangeMeToSomethingSecure123!"
+# redis_password has no default on purpose. Supply it as a secret variable. The value that used
+# to be here is public in Git history, so it is refused (see tasks/main.yaml).
 
 # Performance and Limits
 redis_maxmemory: "512mb"

@@ -1,0 +1,24 @@
+---
+# PostgreSQL on the "postgres" inventory group. THIS SERVER HOLDS DATA: the role replaces
+# postgresql.conf and pg_hba.conf and restarts PostgreSQL when they change. Before a real run,
+# back up the databases, test a restore, and compare a dry run. See README.md.
+- name: Deploy Database Nodes (Postgres)
+  hosts: postgres
+  become: true
+  # Dry run unless the variable dry_run is exactly "false" (any letter case). A typo, an empty
+  # value or no value at all changes nothing.
+  check_mode: "{{ (dry_run | default('true') | string | lower) != 'false' }}"
+  pre_tasks:
+    - name: Refuse real changes to PostgreSQL without explicit confirmation
+      assert:
+        that:
+          - >-
+            (dry_run | default('true') | string | lower) != 'false' or
+            (postgres_confirm | default('') | string) == 'apply-postgres'
+        fail_msg: >-
+          To change PostgreSQL, set postgres_confirm=apply-postgres in addition to dry_run=false.
+          Back up the databases and test a restore first.
+        quiet: true
+      tags: [always]
+  roles:
+    - postgres

@@ -9,7 +9,8 @@
 | `kube-addons/nonprod/` | Application tier: Nexus, Kestra, Harness delegate, apps, databases | `.harness/pipelines/iac.yaml` (TARGET=kube-addons/nonprod) |
 | `kube-addons/charts/` | Local Helm charts (`nonprod/charts` links here) | |
 | `modules/` | Terraform modules for both roots, referenced as `../modules/<name>` | `.harness/pipelines/iac.yaml` (format check) |
-| `others/` | Unmaintained / parked: `ansible`, `airflow-dags`, `jenkins-inventory`, `crawl4ai`, `vault-examples`, `misc` | none |
+| `others/ansible/` | PostgreSQL and Redis roles, run by Harness IaCM Ansible ([setup](others/ansible/README.md)) | `.harness/pipelines/ansible.yaml` (Redis only) |
+| `others/` | Otherwise unmaintained / parked: `airflow-dags`, `jenkins-inventory`, `crawl4ai`, `vault-examples`, `misc` | none |
 | `manifest.yaml` | Repository metadata and the Trivy scan settings the pipeline reads | |
 | `.harness/` | Harness pipeline definition (Plan -> Scan -> Approve -> Execute) and the scripts it runs | |
 

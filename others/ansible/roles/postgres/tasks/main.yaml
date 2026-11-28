@@ -42,6 +42,7 @@
     owner: postgres
     group: postgres
     mode: '0644'
+    backup: true # the previous file stays on the host
   notify: Restart PostgreSQL
 
 - name: Deploy pg_hba.conf from template
@@ -51,6 +52,7 @@
     owner: postgres
     group: postgres
     mode: '0640'
+    backup: true # the previous file stays on the host
   notify: Restart PostgreSQL
 
 - name: Ensure PostgreSQL service is started and enabled

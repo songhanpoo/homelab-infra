@@ -1,0 +1,10 @@
+---
+# Redis on the "redis" inventory group. Needs the variable redis_password (a Harness secret).
+- name: Deploy Cache Nodes (Redis)
+  hosts: redis
+  become: true
+  # Dry run unless the variable dry_run is exactly "false" (any letter case). A typo, an empty
+  # value or no value at all changes nothing.
+  check_mode: "{{ (dry_run | default('true') | string | lower) != 'false' }}"
+  roles:
+    - redis
