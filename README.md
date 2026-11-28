@@ -57,7 +57,17 @@ Seen in Alpine (musl) build pods. The name has an IPv4 record, but the IPv6 (AAA
 dig @192.168.1.79 nexus.local.proxy AAAA   # status should be NOERROR, not NXDOMAIN
 ```
 
-Pod lookups go through CoreDNS, whose `local.proxy` block forwards to Pi-hole, so Talos node `nameservers` don't change them. Adding `template IN AAAA local.proxy { rcode NOERROR }` (on separate lines) to that block fixed a reproduction with CoreDNS 1.14.2. That block was added by hand to the `coredns` ConfigMap and isn't managed in this repo, so a rebuild or Talos upgrade may remove it.
+Pod lookups go through CoreDNS, whose `local.proxy` block forwards to Pi-hole, so Talos node `nameservers` don't change them. The `template` lines in that block answer AAAA with "no address".
+
+### CoreDNS is managed by `kube-addons/prod`
+
+`kube-addons/prod/files/Corefile` is the cluster's whole Corefile; `kubernetes_config_map_v1_data.coredns` applies it.
+
+- Change that file, not the ConfigMap: manual edits are overwritten by the next prod apply.
+- A Talos Kubernetes upgrade can restore its default Corefile. Apply `kube-addons/prod` again afterwards, and first compare the new default with the repo file, because applying replaces it entirely.
+- Any new IPv6 record under `local.proxy` needs the `template` lines removed or narrowed.
+- **Destroying prod is blocked on purpose** (`prevent_destroy`): destroying this resource would empty the Corefile and break cluster DNS. This also stops a pipeline `ACTION=destroy` for `kube-addons/prod`, in the Plan stage. To destroy the tier, first run `terraform state rm kubernetes_config_map_v1_data.coredns` in `kube-addons/prod`; the cluster keeps the current Corefile. Don't just delete the resource block; to stop managing it, use the same command and then remove the block.
+- After rebuilding the cluster, state may still list the resource; the next plan shows what it will restore.
 
 ## Trivy scan before approval
 

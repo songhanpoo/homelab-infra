@@ -77,3 +77,28 @@ resource "helm_release" "metrics_server" {
     yamlencode(local.config.metrics_server.values_yaml)
   ]
 }
+
+# CoreDNS settings (files/Corefile). Talos creates this ConfigMap; Terraform manages only the
+# Corefile in it. The local.proxy block forwards to Pi-hole and answers IPv6 (AAAA) lookups with
+# "no address": Pi-hole can reply NXDOMAIN, which makes Alpine builds fail with ENOTFOUND.
+#
+# "force" takes the field over from whoever set it last (kubectl edit, or Talos after a Kubernetes
+# upgrade). Make later changes in files/Corefile: manual edits are overwritten by the next apply.
+resource "kubernetes_config_map_v1_data" "coredns" {
+  metadata {
+    name      = "coredns"
+    namespace = "kube-system"
+  }
+  data = {
+    Corefile = file("${path.module}/files/Corefile")
+  }
+  field_manager = "terraform-coredns"
+  force         = true
+
+  # Destroying this removes the Corefile and breaks DNS for the whole cluster. To destroy the prod
+  # tier, or to stop managing CoreDNS, first make Terraform forget it (the cluster keeps the file):
+  #   terraform state rm kubernetes_config_map_v1_data.coredns
+  lifecycle {
+    prevent_destroy = true
+  }
+}
