@@ -33,6 +33,20 @@ Editing cloud-init settings does **not** update the ISO volume on the host (`ign
 
 Terraform no longer writes `kubeconfig` and `talosconfig`. Run `make -C infra kubeconfig` to write them to `~/.kube/talos-paul/` and `~/.talos/talos-paul/`. This replaces the files there.
 
+## Changes shown in Harness
+
+`.harness/scripts/tf-report.sh` publishes each run's resource addresses and actions, never values.
+
+| Where | What you see |
+|---|---|
+| **Tests** tab | One group per target, phase (`planned`, `applied`) and action: create, update, replace, delete, forget, move, output. **Rows are resource changes, not tests**, so all of them show as passed. Don't read "passed" as approved or safe |
+| **Annotations** tab | A card with counts and up to 100 addresses; warning style when something is deleted or replaced |
+| Step log | The change summary, as before |
+
+`applied` appears only after a successful apply or destroy. After a failed one, read the log to see what completed.
+
+Annotations need the `CI_ENABLE_HARNESS_ANNOTATIONS` and `PIPE_HARNESS_ANNOTATIONS` feature flags; ask Harness Support to enable them. Without `hcli` in the step, the log says so and the run continues.
+
 ## Provider downloads through Nexus
 
 `make init` can download providers through the Nexus proxy repository `terraform-proxy` (declared in `kube-addons/nonprod/envs/kube-orchestrations/nexus.yaml`). `terraform-nexus.tfrc` redirects `registry.terraform.io`; provider sources and lock files don't change.

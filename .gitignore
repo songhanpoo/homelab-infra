@@ -10,3 +10,6 @@
 
 # local credential files for make (never commit)
 **/.env.*.local
+
+# Harness change reports written by .harness/scripts/tf-report.sh
+.tf-reports/

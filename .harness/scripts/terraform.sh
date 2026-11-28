@@ -54,6 +54,13 @@ fi
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT   # plan files hold secrets
+rm -rf "$PWD/.tf-reports"
+
+# Tests and Annotations tabs. Display only: a problem here never changes the result.
+report() {
+  sh .harness/scripts/tf-report.sh "$WORK/plan.json" "$1" ||
+    echo "WARNING: could not publish the $1 report (the Terraform result is not affected)"
+}
 
 COMMIT=$(git -c safe.directory='*' rev-parse HEAD)
 echo "Target $TARGET, action $ACTION, commit $COMMIT"
@@ -96,11 +103,13 @@ case "$MODE" in
       echo "HAS_CHANGES=$HAS_CHANGES"
       echo "PLAN_FINGERPRINT=$FINGERPRINT"
     } > "$OUTPUTS"
+    report planned
     ;;
   apply)
     [ "$ACTION" != plan ] || fail "ACTION=plan never applies"
     [ "$FINGERPRINT" = "${PLAN_FINGERPRINT:?}" ] ||
       fail "the commit or the list of changes differs from the approved plan. Nothing was changed; run the pipeline again."
     make -C "$TARGET" apply PLANFILE="$WORK/tfplan" APPLY_ARGS="-input=false -lock-timeout=5m"
+    report applied   # only reached when apply succeeded (set -e)
     ;;
 esac

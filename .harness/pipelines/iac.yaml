@@ -11,6 +11,7 @@
 #
 # Flow: Plan -> Approve -> Execute. ACTION=plan stops after Plan, and a plan with no changes
 # skips the other two stages. destroy needs CONFIRM_DESTROY=destroy-<TARGET>.
+# The Tests tab lists resource changes (not tests): planned, then applied after a successful run.
 # Execute plans again and stops unless the commit and the list of changes (addresses and
 # actions, not values) match what Plan showed. It then applies exactly that new plan file.
 #
@@ -79,6 +80,11 @@ pipeline:
                       sh .harness/scripts/terraform.sh plan /tmp/plan-outputs.env
                       . /tmp/plan-outputs.env
                       export HAS_CHANGES PLAN_FINGERPRINT
+                    reports:
+                      type: JUnit
+                      spec:
+                        paths:
+                          - /harness/.tf-reports/*.xml   # resource changes, shown on the Tests tab
                     outputVariables:
                       - name: HAS_CHANGES
                       - name: PLAN_FINGERPRINT
@@ -98,7 +104,7 @@ pipeline:
                   type: HarnessApproval
                   timeout: 1d
                   spec:
-                    approvalMessage: "ACTION=<+pipeline.variables.ACTION> on <+pipeline.variables.TARGET>. Check the change summary at the end of the Plan log before approving. Destroy permanently deletes resources and data."
+                    approvalMessage: "ACTION=<+pipeline.variables.ACTION> on <+pipeline.variables.TARGET>. Check the changes on the Tests tab, or the change summary at the end of the Plan log, before approving. Destroy permanently deletes resources and data."
                     includePipelineExecutionHistory: true
                     approvers:
                       userGroups:
@@ -141,3 +147,8 @@ pipeline:
                     command: |
                       set -eu
                       sh .harness/scripts/terraform.sh apply
+                    reports:
+                      type: JUnit
+                      spec:
+                        paths:
+                          - /harness/.tf-reports/*.xml   # resource changes, shown on the Tests tab
