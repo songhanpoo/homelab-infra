@@ -4,6 +4,11 @@ redis_bind_address: "127.0.0.1" # Change to "0.0.0.0" only if remote systems nee
 # redis_password has no default on purpose. Supply it as a secret variable. The value that used
 # to be here is public in Git history, so it is refused (see tasks/main.yaml).
 
+# False only in a dry run on a server where Redis isn't installed. It reads dry_run itself because
+# ansible_check_mode stays False when check mode comes from the play, as in redis.yaml.
+redis_manage_service: >-
+  {{ (redis_unit.stat.exists | default(false)) or (dry_run | default('true') | string | lower) == 'false' }}
+
 # Performance and Limits
 redis_maxmemory: "512mb"
 redis_maxmemory_policy: "allkeys-lru"

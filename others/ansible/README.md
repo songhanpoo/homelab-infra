@@ -57,7 +57,7 @@ Paste the file into a pipeline in project `visabulletin`. It runs on the `paulta
 
 ## 5. First runs
 1. Keep `dry_run=true` and run. Check the log: it should connect, and report what would change.
-   On a host that isn't configured yet, a dry run can **fail** at a task that needs a package which isn't installed. That failure alone doesn't mean a real run will fail.
+   `changed` in a dry run means "would change". On a server without Redis, the service steps are skipped because they can't be previewed, so a passing dry run doesn't prove that Redis will start.
 2. Set `dry_run` to `false`, run, then set it back to `true`.
 
 ### SSH host keys
