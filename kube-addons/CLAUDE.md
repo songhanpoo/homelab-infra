@@ -1,5 +1,10 @@
 # CLAUDE.md
 
+> **Layout changed:** this folder is now two Terraform roots, `prod/` (platform tier) and
+> `nonprod/` (applications), each with its own `envs/`, Makefile and Harness workspace.
+> `charts/` and `../modules/` are shared. The scoped `*_TARGETS` Make variables, the R2 backend
+> and the single `envs/` tree described further down no longer exist.
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What this is
@@ -74,20 +79,20 @@ Apache Airflow chart: treat it as third-party, don't hand-edit its templates, ov
 
 ## Modules
 
-- `modules/traefik` — runs Traefik + whoami as **Docker containers on a remote host over SSH**
+- `../modules/traefik` — runs Traefik + whoami as **Docker containers on a remote host over SSH**
   (`provider "docker"` with `host = "ssh://..."` in `providers.tf`), not in Kubernetes. The
   interesting file is `modules/traefik/locals.tf`: it re-decodes the raw YAML and mechanically
   flattens `traefik.http.routers.*` / `traefik.http.services.*` into Docker labels, so adding a
   router or service needs no HCL change.
-- `modules/pihole-dns` — `for_each` over the `dns.records` map. Adding a hostname is one YAML line.
-- `modules/pg-bootstrap` — reusable per-app bootstrap: creates `<app>_production_db`, an
+- `../modules/pihole-dns` — `for_each` over the `dns.records` map. Adding a hostname is one YAML line.
+- `../modules/pg-bootstrap` — reusable per-app bootstrap: creates `<app>_production_db`, an
   optional `<app>_schema`, and up to five roles (`admin_cicd`, `owner`, `app`, `read_only`,
   `support`) gated by `is_create_*` booleans. The grants are chained with explicit `depends_on`
   in that order to dodge provider races — preserve the chain if you add a role. Instantiated as
   `module.airflow_db` and `module.visa_bulletin_db`.
-- `modules/n8n-workflows` — **not wired into `main.tf`**; needs the `kodflow/n8n` provider,
+- `../modules/n8n-workflows` — **not wired into `main.tf`**; needs the `kodflow/n8n` provider,
   which is commented out in `versions.tf`. Dormant.
-- `modules/k8s-rbac` — `main.tf` is empty; a stub.
+- `../modules/k8s-rbac` — `main.tf` is empty; a stub.
 
 ## Conventions
 

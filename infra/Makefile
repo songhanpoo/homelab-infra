@@ -1,50 +1,41 @@
-TF=terraform
-ENV ?= dev
+# Talos cluster and libvirt VMs. Always run through make, not bare terraform: see TMPDIR below.
 
-# Credentials come from the environment (export locally, or Harness secrets in CI):
-#   R2_ACCESS_KEY, R2_SECRET_KEY, R2_ACCOUNT_ID
-BUCKET_NAME ?= tf-remote-state
-R2_ENDPOINT = https://$(R2_ACCOUNT_ID).r2.cloudflarestorage.com
-init:
-	$(TF) init \
-		-backend-config="bucket=$(BUCKET_NAME)" \
-		-backend-config="region=auto" \
-		-backend-config="skip_credentials_validation=true" \
-		-backend-config="skip_metadata_api_check=true" \
-		-backend-config="skip_region_validation=true" \
-		-backend-config="skip_requesting_account_id=true" \
-		-backend-config="skip_s3_checksum=true" \
-		-backend-config="use_path_style=true" \
-		-backend-config="key='/paul/infra/$(ENV)/terraform.tfstate'" \
-		-backend-config="access_key=$(R2_ACCESS_KEY)" \
-		-backend-config="secret_key=$(R2_SECRET_KEY)" \
-		-backend-config='endpoints={s3="$(R2_ENDPOINT)"}' \
-		-reconfigure
+# libvirt_cloudinit_disk keeps its ISO under TMPDIR, and Terraform plans to create it again when
+# the file at the path in state is missing. A fixed TMPDIR gives the same path on every machine,
+# and "prepare" rebuilds the files there, so local and pipeline plans match.
+export TMPDIR := /tmp/homelab-terraform
+# Created while make reads this file, because terraform init already needs TMPDIR to exist.
+TMPDIR_READY := $(shell mkdir -p $(TMPDIR) && chmod 700 $(TMPDIR))
 
-lint:
-  $(TF) --call-module-type=all --enable=rule=terraform_naming_convention
-.PHONY: lint
+# The harness provider uses the same API token as the state backend unless you set another.
+HARNESS_PLATFORM_API_KEY ?= $(TF_HTTP_PASSWORD)
+export HARNESS_PLATFORM_API_KEY
 
-.PHONY: validate
-validate:
-	$(TF) validate
+include ../terraform.mk
 
-.PHONY: plan
-plan:
-	$(TF) plan
+CLOUDINIT_STATE = $(TMPDIR)/cloudinit-files.tfstate
 
-.PHONY: apply
-apply:
-	$(TF) apply
+# Rebuild only the current ISOs. The helper's state holds cloud-init data, so it is removed.
+prepare::
+	@echo "Preparing cloud-init ISOs in $(TMPDIR)"
+	@rm -rf "$(TMPDIR)/terraform-provider-libvirt-cloudinit" "$(CLOUDINIT_STATE)" "$(CLOUDINIT_STATE).backup"
+	@$(TF_INIT) -chdir=cloudinit-files init -input=false >/dev/null
+	@$(TF) -chdir=cloudinit-files apply -input=false -auto-approve -state="$(CLOUDINIT_STATE)" >/dev/null
+	@rm -f "$(CLOUDINIT_STATE)" "$(CLOUDINIT_STATE).backup"
 
-.PHONY: apply-auto
-apply-auto:
-	$(TF) apply -auto-approve
+# Write the cluster credentials from state to this machine (replaces the old local_file resources).
+CLUSTER ?= talos-paul
 
-.PHONY: destroy
-destroy:
-	$(TF) destroy
+.PHONY: kubeconfig
+kubeconfig:
+	@umask 077; for pair in "kubeconfig_raw:$(HOME)/.kube/$(CLUSTER)/kubeconfig" "talosconfig:$(HOME)/.talos/$(CLUSTER)/talosconfig"; do \
+	  name=$${pair%%:*}; dest=$${pair#*:}; tmp="$$dest.new"; mkdir -p "$$(dirname "$$dest")" || exit 1; \
+	  if $(TF) output -raw "$$name" > "$$tmp" && [ -s "$$tmp" ]; then mv "$$tmp" "$$dest" && echo "wrote $$dest"; \
+	  else rm -f "$$tmp"; echo "could not read output $$name" >&2; exit 1; fi; \
+	done
 
-.PHONY: destroy-auto
-destroy-auto:
-	$(TF) destroy -auto-approve
+# One-time move of the old R2 state into Harness. Terraform asks before copying.
+# Do not use -reconfigure here: it switches backend without copying the state.
+.PHONY: migrate-state
+migrate-state:
+	$(TF) init -migrate-state

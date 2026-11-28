@@ -1,12 +1,5 @@
 ---
-- name: Deploy Database Nodes (Postgres)
-  hosts: postgres
-  become: true
-  roles:
-    - postgres
-
-- name: Deploy Cache Nodes (Redis)
-  hosts: redis
-  become: true
-  roles:
-    - redis
+# Both server types, for local use. In Harness, register redis.yaml and postgres.yaml
+# separately so that a Redis run can never touch PostgreSQL.
+- import_playbook: postgres.yaml
+- import_playbook: redis.yaml

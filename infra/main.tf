@@ -1,9 +1,9 @@
 # KVM module to create Talos nodes
 module "talos" {
-  source = "./modules/talos"
+  source = "../modules/talos"
   nodes  = local.configs.clusters.nodes
   image = {
-    version    = local.configs.clusters.image.version
+    version = local.configs.clusters.image.version
     schematics = {
       for k, v in try(local.configs.clusters.image.schematics, {}) : k => jsonencode(v)
     }
@@ -21,18 +21,35 @@ module "talos" {
 
 # Nginx Proxy Manager module
 # module "nginx_proxy" {
-#   source       = "./modules/nginx-proxy"
+#   source       = "../modules/nginx-proxy"
 #   service_name = "nginx-proxy-manager"
 #   timezone     = "Asia/Ho_Chi_Minh"
 # }
 
 # Initial vm by cloud_init
 module "virtual-machine" {
-  source = "./modules/kvm"
+  source = "../modules/kvm"
   nodes  = local.configs.databases.nodes
   image = {
-    version    = local.configs.databases.image.version
+    version = local.configs.databases.image.version
     # schematic  = jsonencode(local.configs.clusters.image.schematic)
     image_name = local.configs.databases.image.name
+  }
+}
+
+# kubeconfig and talosconfig are no longer local_file resources: they existed only on the machine
+# that ran Terraform, so every fresh pipeline job planned to create them. Forget them without
+# deleting the files. Write them with "make kubeconfig".
+removed {
+  from = module.talos.local_file.kubeconfig
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = module.talos.local_file.talosconfig
+  lifecycle {
+    destroy = false
   }
 }

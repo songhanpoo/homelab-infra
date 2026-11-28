@@ -1,0 +1,10 @@
+# The image's supervisord.conf with two changes (see files/supervisord.conf and values.yaml).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "crawl4ai.fullname" . }}-supervisord
+  labels:
+    {{- include "crawl4ai.labels" . | nindent 4 }}
+data:
+  supervisord.conf: |
+    {{- .Files.Get "files/supervisord.conf" | nindent 4 }}

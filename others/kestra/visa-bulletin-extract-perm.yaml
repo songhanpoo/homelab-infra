@@ -1,0 +1,47 @@
+
+id: visa-bulletin-extract-perm
+namespace: visa_bulletin
+description: >
+  DOL publishes PWD/PERM data in the first work week of each month. Runs daily on days 1-10; extract_perm upserts by bulletin_month, so repeat runs are no-ops.
+
+tasks:
+  - id: extract_perm
+    type: io.kestra.plugin.kubernetes.PodCreate
+    namespace: kestra-executions
+    delete: true
+    waitUntilRunning: PT5M
+    waitRunning: PT30M
+    retry:
+      type: constant
+      interval: PT10M
+      maxAttempts: 3 # Airflow: 1 run + 2 retries
+    spec:
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: nexus-docker-registries
+      hostAliases:
+        - ip: 192.168.1.98
+          hostnames:
+            - crawl4ai.localdev.me
+            - flaresolver.localdev.me
+      containers:
+        - name: extract-perm
+          image: nexus-docker-private.local.proxy/visa-bulletin:latest
+          imagePullPolicy: Always
+          args:
+            - --scenario=extract_perm
+          env:
+            - { name: NO_PROXY, value: "" }
+            - { name: no_proxy, value: "" }
+          envFrom:
+            - secretRef:
+                name: visa-bulletin-dag
+          resources:
+            requests: { memory: 256Mi, cpu: 100m }
+            limits: { memory: 512Mi, cpu: 500m }
+
+triggers:
+  - id: daily
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 13 1-10 * *"
+    disabled: false

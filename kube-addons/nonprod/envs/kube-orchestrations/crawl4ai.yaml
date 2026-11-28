@@ -1,0 +1,29 @@
+crawl4ai:
+  name: "crawl4ai"
+  chart: "./charts/crawl4ai"
+  version: "0.2.0" # must match Chart.yaml; bump both when the local chart changes
+  namespace: "kube-orchestrations"
+  values_yaml:
+    ingress:
+      enabled: true
+      className: "nginx-internal"
+      hosts:
+        - host: "crawl4ai.localdev.me"
+          paths:
+            - path: "/"
+              pathType: "Prefix"
+    image:
+      registry: nexus-docker.local.proxy
+      repository: "unclecode/crawl4ai"
+      tag: "0.8"
+    replicaCount: 1
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+    rate_limiting:
+      enabled: true
+      default_limit: "500/minute"

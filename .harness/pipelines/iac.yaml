@@ -1,0 +1,251 @@
+# One Terraform pipeline, one root per run. The shell logic is in .harness/scripts/terraform.sh.
+#
+#   TARGET               manages                                      credentials used
+#   infra                libvirt VMs and the Talos cluster            SSH
+#   kube-addons/prod     ingress, storage, DNS, Traefik, metrics      SSH, kubeconfig
+#   databases/nonprod    PostgreSQL databases, roles and grants       none extra
+#   kube-addons/nonprod  applications                                 kubeconfig
+#
+# Create or update in the order above. Destroy in the reverse order.
+# After infra rebuilds the cluster, update the kubeconfig_b64 secret before running kube-addons.
+#
+# Flow: Plan -> Scan -> Approve -> Execute. ACTION=plan stops after Scan, and a plan with no changes
+# skips Approve and Execute.
+# manifest.yaml decides whether Scan runs and what blocks; the first Plan step reads it.
+# Scan runs Trivy (.harness/scripts/trivy-scan.sh), sends the findings to Harness and then fails
+# on findings at the manifest's severities, which blocks Approve and Execute. destroy skips Scan.
+# Sending findings needs the STO CustomIngest step; if that step fails, the gate still applies.
+# manifest.yaml pins the Trivy image by digest: releases 0.69.4-0.69.6 were malicious (CVE-2026-33634).
+# destroy needs CONFIRM_DESTROY=destroy-<TARGET>.
+# The Tests tab lists resource changes (not tests): planned, then applied after a successful run.
+# Execute plans again and stops unless the commit and the list of changes (addresses and
+# actions, not values) match what Plan showed. It then applies exactly that new plan file.
+#
+# Storage: once onboarded by infra/harness-pipeline.tf, Harness reads this file from Git (master),
+# so merge changes there. While the pipeline is still Inline in Harness, paste edits in again.
+# Harness text secrets: harness_api_token (state; access to every workspace above),
+#   ssh_private_key_b64, ssh_known_hosts_b64, kubeconfig_b64. Encode: base64 < file | tr -d '\n'
+pipeline:
+  name: iacm
+  identifier: iacm
+  projectIdentifier: visabulletin
+  orgIdentifier: default
+  tags:
+    iac: terraform
+  properties:
+    ci:
+      codebase:
+        connectorRef: songhanpoo     # Git connector for this repo
+        repoName: homelab-infra
+        build: <+input>
+  variables:
+    - name: TARGET
+      type: String
+      description: Which root to run (create in this order; destroy in reverse)
+      value: <+input>.allowedValues(infra,kube-addons/prod,databases/nonprod,kube-addons/nonprod)
+    - name: ACTION
+      type: String
+      description: plan = plan only. apply or destroy = plan, approve, then run it
+      value: <+input>.allowedValues(plan,apply,destroy)
+    - name: CONFIRM_DESTROY
+      type: String
+      description: Only for destroy. Type destroy-<TARGET>, e.g. destroy-infra or destroy-kube-addons/nonprod
+      value: <+input>.default(no)
+  stages:
+    - stage:
+        name: Plan
+        identifier: plan
+        type: CI
+        spec:
+          cloneCodebase: true
+          infrastructure:
+            type: KubernetesDirect
+            spec:
+              connectorRef: paultalos   # Kubernetes connector on the LAN delegate
+              namespace: harness-executions
+          execution:
+            steps:
+              - step:
+                  name: read manifest
+                  identifier: read_manifest
+                  type: Run
+                  spec:
+                    connectorRef: nexusdocker
+                    image: library/alpine:3.24.2
+                    shell: Sh
+                    envVariables:
+                      TARGET: <+pipeline.variables.TARGET>
+                    command: |
+                      set -eu
+                      sh .harness/scripts/read-manifest.sh /tmp/manifest.env
+                      . /tmp/manifest.env
+                      export SCAN_ENABLED SCAN_IMAGE_TAG SCAN_SEVERITY SCAN_IGNORE_FILE SCAN_IGNORE_FAILURE
+                    outputVariables:
+                      - name: SCAN_ENABLED
+                      - name: SCAN_IMAGE_TAG
+                      - name: SCAN_SEVERITY
+                      - name: SCAN_IGNORE_FILE
+                      - name: SCAN_IGNORE_FAILURE
+              - step:
+                  name: terraform plan
+                  identifier: tf_plan
+                  type: Run
+                  spec:
+                    connectorRef: nexusdocker   # Docker registry connector (or drop for public pulls)
+                    image: hashicorp/terraform:1.12.2
+                    shell: Sh
+                    envVariables:
+                      TF_HTTP_PASSWORD: <+secrets.getValue("harness_api_token")>   # Terraform state backend
+                      SSH_KEY_B64: <+secrets.getValue("ssh_private_key_b64")>
+                      SSH_KNOWN_HOSTS_B64: <+secrets.getValue("ssh_known_hosts_b64")>
+                      KUBECONFIG_B64: <+secrets.getValue("kubeconfig_b64")>
+                      TARGET: <+pipeline.variables.TARGET>
+                      ACTION: <+pipeline.variables.ACTION>
+                      CONFIRM_DESTROY: <+pipeline.variables.CONFIRM_DESTROY>
+                    command: |
+                      set -eu
+                      sh .harness/scripts/terraform.sh plan /tmp/plan-outputs.env
+                      . /tmp/plan-outputs.env
+                      export HAS_CHANGES PLAN_FINGERPRINT
+                    reports:
+                      type: JUnit
+                      spec:
+                        paths:
+                          - /harness/.tf-reports/*.xml   # resource changes, shown on the Tests tab
+                    outputVariables:
+                      - name: HAS_CHANGES
+                      - name: PLAN_FINGERPRINT
+    - stage:
+        name: Scan
+        identifier: scan
+        type: CI
+        when:
+          pipelineStatus: Success
+          condition: <+pipeline.variables.ACTION> != "destroy" && <+pipeline.stages.plan.spec.execution.steps.read_manifest.output.outputVariables.SCAN_ENABLED> == "true"
+        spec:
+          cloneCodebase: true   # its own pod: no credentials and no shared files with Plan
+          sharedPaths:
+            - /shared/scan_results
+          infrastructure:
+            type: KubernetesDirect
+            spec:
+              connectorRef: paultalos
+              namespace: harness-executions
+          execution:
+            steps:
+              - step:
+                  name: trivy scan
+                  identifier: trivy_scan
+                  type: Run
+                  spec:
+                    connectorRef: nexusdocker
+                    image: aquasec/trivy:<+pipeline.stages.plan.spec.execution.steps.read_manifest.output.outputVariables.SCAN_IMAGE_TAG>
+                    shell: Sh
+                    envVariables:
+                      TARGET: <+pipeline.variables.TARGET>
+                      SCAN_IGNORE_FILE: <+pipeline.stages.plan.spec.execution.steps.read_manifest.output.outputVariables.SCAN_IGNORE_FILE>
+                    command: |
+                      set -eu
+                      sh .harness/scripts/trivy-scan.sh scan /shared/scan_results
+              - step:
+                  name: send findings to Harness
+                  identifier: trivy_ingest
+                  type: CustomIngest
+                  spec:
+                    mode: ingestion
+                    config: sarif
+                    target:
+                      type: repository
+                      detection: manual
+                      name: homelab-infra <+pipeline.variables.TARGET>
+                      variant: <+codebase.branch>
+                    advanced:
+                      log:
+                        level: info
+                      fail_on_severity: none   # the gate step below decides, even if this step fails
+                    ingestion:
+                      file: /shared/scan_results/trivy.sarif
+                  failureStrategies:
+                    - onFailure:
+                        errors:
+                          - AllErrors
+                        action:
+                          type: Ignore
+              - step:
+                  name: trivy gate
+                  identifier: trivy_gate
+                  type: Run
+                  spec:
+                    connectorRef: nexusdocker
+                    image: aquasec/trivy:<+pipeline.stages.plan.spec.execution.steps.read_manifest.output.outputVariables.SCAN_IMAGE_TAG>
+                    shell: Sh
+                    envVariables:
+                      SCAN_SEVERITY: <+pipeline.stages.plan.spec.execution.steps.read_manifest.output.outputVariables.SCAN_SEVERITY>
+                      SCAN_IGNORE_FAILURE: <+pipeline.stages.plan.spec.execution.steps.read_manifest.output.outputVariables.SCAN_IGNORE_FAILURE>
+                    command: |
+                      set -eu
+                      sh .harness/scripts/trivy-scan.sh gate /shared/scan_results
+    - stage:
+        name: Approve
+        identifier: approve
+        type: Approval
+        when:
+          pipelineStatus: Success
+          condition: <+pipeline.variables.ACTION> != "plan" && <+pipeline.stages.plan.spec.execution.steps.tf_plan.output.outputVariables.HAS_CHANGES> == "true"
+        spec:
+          execution:
+            steps:
+              - step:
+                  name: Review plan
+                  identifier: review_plan
+                  type: HarnessApproval
+                  timeout: 1d
+                  spec:
+                    approvalMessage: "ACTION=<+pipeline.variables.ACTION> on <+pipeline.variables.TARGET>. Check the changes on the Tests tab, or the change summary at the end of the Plan log, before approving. Trivy scan enabled by manifest.yaml: <+pipeline.stages.plan.spec.execution.steps.read_manifest.output.outputVariables.SCAN_ENABLED> (ignoreFailure: <+pipeline.stages.plan.spec.execution.steps.read_manifest.output.outputVariables.SCAN_IGNORE_FAILURE>). If enabled, check the Scan stage results; destroy runs skip it. Destroy permanently deletes resources and data."
+                    includePipelineExecutionHistory: true
+                    approvers:
+                      userGroups:
+                        - account._account_all_users
+                      minimumCount: 1
+                      disallowPipelineExecutor: false
+    - stage:
+        name: Execute
+        identifier: execute
+        type: CI
+        when:
+          pipelineStatus: Success
+          condition: <+pipeline.variables.ACTION> != "plan" && <+pipeline.stages.plan.spec.execution.steps.tf_plan.output.outputVariables.HAS_CHANGES> == "true"
+        spec:
+          cloneCodebase: true
+          infrastructure:
+            type: KubernetesDirect
+            spec:
+              connectorRef: paultalos   # Kubernetes connector on the LAN delegate
+              namespace: harness-executions
+          execution:
+            steps:
+              - step:
+                  name: terraform apply or destroy
+                  identifier: tf_execute
+                  type: Run
+                  spec:
+                    connectorRef: nexusdocker   # Docker registry connector (or drop for public pulls)
+                    image: hashicorp/terraform:1.12.2
+                    shell: Sh
+                    envVariables:
+                      TF_HTTP_PASSWORD: <+secrets.getValue("harness_api_token")>   # Terraform state backend
+                      SSH_KEY_B64: <+secrets.getValue("ssh_private_key_b64")>
+                      SSH_KNOWN_HOSTS_B64: <+secrets.getValue("ssh_known_hosts_b64")>
+                      KUBECONFIG_B64: <+secrets.getValue("kubeconfig_b64")>
+                      TARGET: <+pipeline.variables.TARGET>
+                      ACTION: <+pipeline.variables.ACTION>
+                      CONFIRM_DESTROY: <+pipeline.variables.CONFIRM_DESTROY>
+                      PLAN_FINGERPRINT: <+pipeline.stages.plan.spec.execution.steps.tf_plan.output.outputVariables.PLAN_FINGERPRINT>
+                    command: |
+                      set -eu
+                      sh .harness/scripts/terraform.sh apply
+                    reports:
+                      type: JUnit
+                      spec:
+                        paths:
+                          - /harness/.tf-reports/*.xml   # resource changes, shown on the Tests tab

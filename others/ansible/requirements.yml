@@ -1,0 +1,5 @@
+---
+# Collections the roles need (Harness: playbook > Ansible Galaxy > Requirements File).
+collections:
+  - name: ansible.posix # sysctl
+    version: "1.6.2"

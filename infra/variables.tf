@@ -1,8 +1,3 @@
-variable "env" {
-  type    = string
-  default = "dev"
-}
-
 # variable "nodes" {
 #   description = "Configuration for cluster nodes"
 #   type = map(object({

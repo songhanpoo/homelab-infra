@@ -1,4 +1,17 @@
 ---
+- name: Require a strong Redis password
+  assert:
+    that:
+      - redis_password is defined
+      - redis_password | string | length >= 16
+      - redis_password | string != 'ChangeMeToSomethingSecure123!'
+      - redis_password | string is not search('\\s')
+    fail_msg: >-
+      Set redis_password as a secret variable: at least 16 characters, no spaces,
+      and not the old default that is public in Git history.
+    quiet: true
+  tags: [always]
+
 - name: Install Redis Server package
   apt:
     name:
@@ -9,7 +22,7 @@
 
 # --- Performance tuning (Mandatory for production database saving) ---
 - name: Configure kernel overcommit memory for Redis performance
-  sysctl:
+  ansible.posix.sysctl:
     name: vm.overcommit_memory
     value: "1"
     state: present
@@ -23,10 +36,26 @@
     owner: redis
     group: redis
     mode: '0640'
+    backup: true # the previous file stays on the host
+  no_log: true # the rendered file and its diff contain the password
   notify: Restart Redis
+
+# A dry run only simulates the install, so on a new server the service doesn't exist yet.
+- name: Check whether the Redis service is installed
+  stat:
+    path: /usr/lib/systemd/system/redis-server.service
+  register: redis_unit
+
+- name: Report that service steps are skipped in this dry run
+  debug:
+    msg: >-
+      Dry run on a server without Redis: starting and restarting the service can't be
+      previewed, so those steps are skipped. They run when dry_run is false.
+  when: not (redis_manage_service | bool)
 
 - name: Ensure Redis service is started and enabled
   systemd:
     name: redis-server
     state: started
     enabled: true
+  when: redis_manage_service | bool

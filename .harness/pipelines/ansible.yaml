@@ -1,0 +1,67 @@
+# Harness IaCM Ansible for others/ansible. Setup: others/ansible/README.md
+# Flow: Approve -> Ansible. Pick PLAYBOOK at run time; each choice is a Playbook in Harness:
+#   redis      others/ansible/redis.yaml       (default)
+#   postgres   others/ansible/postgres.yaml    THIS SERVER HOLDS DATA
+#   playbooks  others/ansible/playbooks.yaml   both
+# Every Playbook is a dry run unless its dry_run variable is "false". Real PostgreSQL changes also
+# need postgres_confirm=apply-postgres. The inventory has no "postgres" host on purpose: until it is
+# added, the postgres part matches no hosts and does nothing, even though the run can succeed.
+# Storage: once onboarded by infra/harness-pipeline.tf, Harness reads this file from Git (master).
+# While the pipeline is still Inline in Harness, paste edits in again.
+pipeline:
+  name: ansible
+  identifier: ansible
+  projectIdentifier: visabulletin
+  orgIdentifier: default
+  tags:
+    iac: ansible
+  variables:
+    - name: PLAYBOOK
+      type: String
+      description: redis = Redis only. postgres and playbooks include the server that holds data
+      value: <+input>.default(redis).allowedValues(redis,postgres,playbooks)
+  stages:
+    - stage:
+        name: Approve
+        identifier: approve
+        type: Approval
+        spec:
+          execution:
+            steps:
+              - step:
+                  name: Review run
+                  identifier: review_run
+                  type: HarnessApproval
+                  timeout: 1d
+                  spec:
+                    approvalMessage: "Ansible run of PLAYBOOK=<+pipeline.variables.PLAYBOOK>. Check that Playbook's dry_run variable first: false changes the server. postgres and playbooks involve the server that holds data."
+                    includePipelineExecutionHistory: true
+                    approvers:
+                      userGroups:
+                        - account._account_all_users
+                      minimumCount: 1
+                      disallowPipelineExecutor: false
+    - stage:
+        name: Ansible
+        identifier: ansible
+        type: IACM
+        spec:
+          infrastructure:
+            type: KubernetesDirect
+            spec:
+              connectorRef: paultalos # Kubernetes connector on the LAN delegate
+              namespace: harness-executions
+              os: Linux
+          execution:
+            steps:
+              - step:
+                  name: run playbook
+                  identifier: run_playbook
+                  type: IACMAnsiblePlugin
+                  timeout: 30m
+                  spec:
+                    command: run
+          playbooks:
+            - <+pipeline.variables.PLAYBOOK>
+          inventories:
+            - homelab_databases

@@ -11,7 +11,8 @@ image:
   # This sets the pull policy for images.
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "latest"
+  # Keep in step with files/supervisord.conf, which is copied from this image version.
+  tag: "0.8"
 
 # This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets: []
@@ -38,16 +39,36 @@ podAnnotations: {}
 # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
 podLabels: {}
 
-podSecurityContext: {}
-  # fsGroup: 2000
+# The image already runs as appuser (999). These settings were tested with image 0.8: health,
+# crawl, markdown, HTML, PDF and screenshot work as they do without them.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 999
+  runAsGroup: 999
+  fsGroup: 999
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 999
+  runAsGroup: 999
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+
+# The only writable folders (emptyDir, emptied when the pod is replaced). None of them holds files
+# from the image. /home/appuser/.cache stays read-only: the browser is installed there.
+writableDirs:
+  - { name: tmp, mountPath: /tmp, sizeLimit: 1Gi } # also Redis data and the supervisor pid file
+  - { name: crawl4ai-home, mountPath: /home/appuser/.crawl4ai, sizeLimit: 512Mi }
+  - { name: gunicorn-home, mountPath: /home/appuser/.gunicorn, sizeLimit: 16Mi }
+  - { name: config-home, mountPath: /home/appuser/.config, sizeLimit: 128Mi }
+  - { name: local-home, mountPath: /home/appuser/.local, sizeLimit: 128Mi }
 
 # This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
 service:

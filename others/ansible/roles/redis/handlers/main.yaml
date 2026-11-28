@@ -3,6 +3,7 @@
   systemd:
     name: redis-server
     state: restarted
+  when: redis_manage_service | bool
 
 - name: Reload Sysctl
   command: sysctl --system

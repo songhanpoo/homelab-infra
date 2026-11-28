@@ -2,11 +2,145 @@
 
 | Folder | What | Pipeline |
 |---|---|---|
-| `infra/` | Terraform: Talos, KVM/libvirt VMs, nginx-proxy -> baseline cluster | `.harness/pipelines/iac_infra.yaml` |
-| `kube-addons/` | Terraform + Helm: add-ons and services on the running cluster (`charts/`, `modules/`, `envs/`, `manifests/`) | `.harness/pipelines/iac_kube_addons.yaml` |
-| `others/` | Unmaintained / parked: `ansible`, `airflow-dags`, `jenkins-inventory`, `crawl4ai`, `vault-examples`, `misc` | none |
-| `.harness/` | Harness pipeline definitions (Plan -> Approve -> Apply) | |
+| `infra/` | Terraform: Talos, KVM/libvirt VMs, nginx-proxy -> baseline cluster | `.harness/pipelines/iac.yaml` (TARGET=infra) |
+| `databases/nonprod/` | PostgreSQL databases, roles and grants (apply before `kube-addons/nonprod`) | `.harness/pipelines/iac.yaml` (TARGET=databases/nonprod) |
+| `databases/prod/` | Empty placeholder for production databases | Not in the pipeline yet |
+| `kube-addons/prod/` | Platform tier: ingress, NFS storage, DNS, Traefik, metrics | `.harness/pipelines/iac.yaml` (TARGET=kube-addons/prod) |
+| `kube-addons/nonprod/` | Application tier: Nexus, Kestra, Harness delegate, apps, databases | `.harness/pipelines/iac.yaml` (TARGET=kube-addons/nonprod) |
+| `kube-addons/charts/` | Local Helm charts (`nonprod/charts` links here) | |
+| `modules/` | Terraform modules for both roots, referenced as `../modules/<name>` | `.harness/pipelines/iac.yaml` (format check) |
+| `others/ansible/` | PostgreSQL and Redis roles, run by Harness IaCM Ansible ([setup](others/ansible/README.md)) | `.harness/pipelines/ansible.yaml` (input `PLAYBOOK`) |
+| `others/` | Otherwise unmaintained / parked: `airflow-dags`, `jenkins-inventory`, `crawl4ai`, `vault-examples`, `misc` | none |
+| `manifest.yaml` | Repository metadata and the Trivy scan settings the pipeline reads | |
+| `.harness/` | Harness pipeline definition (Plan -> Scan -> Approve -> Execute) and the scripts it runs | |
 
-Local use: `export R2_ACCESS_KEY=... R2_SECRET_KEY=... R2_ACCOUNT_ID=...` then `cd infra && make init && make plan`.
+`kube-addons/prod` and `kube-addons/nonprod` are two tiers of the **same cluster**, not separate environments. Each folder (and `infra/`) has its own state in its own Harness IaCM workspace. Apply `infra`, then `kube-addons/prod`, then `databases/`, then `kube-addons/nonprod`; destroy in reverse.
 
-Order on a fresh setup: `infra` first, then `kube-addons`.
+## Run Terraform with make
+
+The pipeline runs the same `make` targets (shared in `terraform.mk`), so use `make` locally too. Set `TF_HTTP_PASSWORD` to a Harness API token, then:
+
+```sh
+make -C <folder> init
+make -C <folder> check
+make -C <folder> plan
+make -C <folder> apply
+```
+
+Local results reflect your working tree and your versions of local files. The pipeline uses the pushed branch.
+
+**`infra` must go through `make`.** The libvirt provider keeps each cloud-init ISO as a file under `TMPDIR` and plans to create it again when that file is missing. `infra/Makefile` sets one fixed `TMPDIR` and, before each plan or apply, rebuilds the ISOs with the local-only helper `infra/cloudinit-files/`. A bare `terraform plan` skips both steps. This relies on libvirt provider 0.9.1; check it again when upgrading.
+
+Editing cloud-init settings does **not** update the ISO volume on the host (`ignore_changes` in `modules/kvm`). Replace the volume on purpose when you need that.
+
+Terraform no longer writes `kubeconfig` and `talosconfig`. Run `make -C infra kubeconfig` to write them to `~/.kube/talos-paul/` and `~/.talos/talos-paul/`. This replaces the files there.
+
+## Pipelines from Git
+
+`infra/harness-pipeline.tf` onboards the pipelines listed under `harness.pipelines` in `infra/envs/nonprod.yaml` as Remote pipelines (connector `songhanpoo`, branch `master`). **Git is the source of truth.** Terraform only creates them (`ignore_changes = all`): edit the YAML through Git. Changing a name, path or branch in `nonprod.yaml` afterwards does nothing.
+
+### First-time onboarding (replaces the Inline pipelines)
+
+Do this from your own machine: the `iacm` pipeline doesn't exist during step 5.
+
+1. Merge the pull request, and check both files are on `master`.
+2. In Harness, copy the YAML of the Inline `iacm` and `ansible` pipelines, save the copies, and compare them with the files. **Changes made only in Harness would be lost**; add them to Git first.
+3. Set the branch of the three Ansible playbooks to `master`.
+4. Delete the two Inline pipelines. Their run history may no longer be reachable.
+5. Set `enabled: true` for both in `nonprod.yaml`. Then, in `infra/`, with `TF_HTTP_PASSWORD` set to a token that may create pipelines:
+   ```sh
+   make init
+   make plan PLAN_ARGS="-target=harness_platform_pipeline.this -out=/tmp/homelab-terraform/pipelines.tfplan"
+   ```
+   Expect **2 to add** and nothing else. Then `make apply PLANFILE=/tmp/homelab-terraform/pipelines.tfplan`, and delete the plan file.
+6. In Harness, check both show as stored in Git on `master`, and run `iacm` with `ACTION=plan`. Commit and merge the `enabled: true` change, or the next pipeline run would try to remove them and be blocked.
+
+If the import fails, recreate the Inline pipeline from your saved copy.
+
+- Deleting is blocked (`prevent_destroy`), including `destroy` of `infra`. To stop managing one: `terraform state rm 'harness_platform_pipeline.this["<identifier>"]'`, then set `enabled: false`.
+- To add a pipeline: add its YAML to Git on `master`, then an entry whose key equals the YAML `identifier`.
+
+## Cluster credentials in Harness secrets
+
+`infra/harness-secrets.tf` keeps two project secrets current from the Talos module, base64 on one line:
+
+| Secret | Contents | Used by |
+|---|---|---|
+| `kubeconfig_b64` | cluster kubeconfig (imported, first created by hand) | every `iacm` pipeline run |
+| `talosconfig_b64` | Talos client config: full admin of the nodes | nothing yet |
+
+- `make` passes `TF_HTTP_PASSWORD` to the Harness provider as `HARNESS_PLATFORM_API_KEY` (set that yourself to use a different token). The token needs permission to create and edit project secrets, as well as access to the state.
+- Don't edit these secrets in the UI. The values are also stored in Terraform state, and anyone who can use a secret in a pipeline can get its value.
+- **`destroy` of `infra` is blocked** (`prevent_destroy`): without `kubeconfig_b64`, pipeline runs couldn't rebuild the cluster. To destroy `infra` and keep the secrets, run `terraform state rm harness_platform_secret_text.kubeconfig_b64 harness_platform_secret_text.talosconfig_b64` in `infra/` and remove the `import` block until you manage the secret again.
+- After rebuilding the cluster, apply `infra` **before** running `kube-addons` targets. Rebuild from your own machine: pipeline jobs run on the cluster.
+
+## Changes shown in Harness
+
+`.harness/scripts/tf-report.sh` publishes each run's resource addresses and actions, never values.
+
+| Where | What you see |
+|---|---|
+| **Tests** tab | One group per target, phase (`planned`, `applied`) and action: create, update, replace, delete, forget, move, output. **Rows are resource changes, not tests**, so all of them show as passed. Don't read "passed" as approved or safe |
+| **Annotations** tab | A card with counts and up to 100 addresses; warning style when something is deleted or replaced |
+| Step log | The change summary, as before |
+
+`applied` appears only after a successful apply or destroy. After a failed one, read the log to see what completed.
+
+Annotations need the `CI_ENABLE_HARNESS_ANNOTATIONS` and `PIPE_HARNESS_ANNOTATIONS` feature flags; ask Harness Support to enable them. Without `hcli` in the step, the log says so and the run continues.
+
+## Builds fail with `ENOTFOUND nexus.local.proxy`
+
+Seen in Alpine (musl) build pods. The name has an IPv4 record, but the IPv6 (AAAA) lookup returned `NXDOMAIN`, which Alpine treats as "no such name". Debian-based tools still resolve it, so it looks intermittent. Check:
+
+```sh
+dig @192.168.1.79 nexus.local.proxy AAAA   # status should be NOERROR, not NXDOMAIN
+```
+
+Pod lookups go through CoreDNS, whose `local.proxy` block forwards to Pi-hole, so Talos node `nameservers` don't change them. The `template` lines in that block answer AAAA with "no address".
+
+### CoreDNS is managed by `kube-addons/prod`
+
+`kube-addons/prod/files/Corefile` is the cluster's whole Corefile; `kubernetes_config_map_v1_data.coredns` applies it.
+
+- Change that file, not the ConfigMap: manual edits are overwritten by the next prod apply.
+- A Talos Kubernetes upgrade can restore its default Corefile. Apply `kube-addons/prod` again afterwards, and first compare the new default with the repo file, because applying replaces it entirely.
+- Any new IPv6 record under `local.proxy` needs the `template` lines removed or narrowed.
+- **Destroying prod is blocked on purpose** (`prevent_destroy`): destroying this resource would empty the Corefile and break cluster DNS. This also stops a pipeline `ACTION=destroy` for `kube-addons/prod`, in the Plan stage. To destroy the tier, first run `terraform state rm kubernetes_config_map_v1_data.coredns` in `kube-addons/prod`; the cluster keeps the current Corefile. Don't just delete the resource block; to stop managing it, use the same command and then remove the block.
+- After rebuilding the cluster, state may still list the resource; the next plan shows what it will restore.
+
+## Trivy scan before approval
+
+The pipeline runs Plan -> **Scan** -> Approve -> Execute. `.harness/scripts/trivy-scan.sh` scans the target's `.tf` files, the modules they use, and local Helm charts referenced by the target's env files. Charts are rendered with their **own default values**, not the values Terraform deploys. Remote charts (Nexus, Kestra and others) are not scanned. This is a misconfiguration scan only: no secret or image scanning.
+
+**A clean Terraform result is weak evidence.** Trivy has few or no checks for libvirt, Talos, Pi-hole or PostgreSQL. In testing it caught an open AWS rule but missed a privileged Kubernetes pod written in Terraform and a `root:password` cloud-init.
+
+- Settings are in `manifest.yaml` under `pipeline.platformScans.iac`; `.harness/scripts/read-manifest.sh` checks them in the first step of each run.
+
+| Key | Effect |
+|---|---|
+| `enabled` | `false` skips the whole Scan stage |
+| `severity` | Levels that fail the gate (default here: HIGH, CRITICAL) |
+| `ignoreFailure` | `true` scans and reports, but never blocks |
+| `ignoreFile` | Accepted finding IDs, one per line with a reason. An ID there is ignored for **every** target |
+| `version`, `digest` | The Trivy image; both required |
+
+- One target can override `enabled` or `ignoreFailure`, under `pipeline.targets.<name>.scan`.
+- A failed gate stops Approve and Execute. `ACTION=destroy` always skips the scan.
+- **A commit can turn the scan off.** The approval message and the `read manifest` log show the setting: review changes to `manifest.yaml` like pipeline code.
+- Findings go to Harness as SARIF through the STO `CustomIngest` step. If that step fails, it is ignored and the gate still applies; the findings are also in the `trivy scan` log.
+- The image runs offline with its built-in checks. Trivy 0.69.4-0.69.6 releases were malicious (CVE-2026-33634): verify a new version and digest before updating `manifest.yaml`.
+
+## Provider downloads through Nexus
+
+`make init` can download providers through the Nexus proxy repository `terraform-proxy` (declared in `kube-addons/nonprod/envs/kube-orchestrations/nexus.yaml`). `terraform-nexus.tfrc` redirects `registry.terraform.io`; provider sources and lock files don't change.
+
+| Setting | Behaviour |
+|---|---|
+| `NEXUS=auto` (default) | Nexus if it answers over trusted TLS, otherwise direct. If `init` through Nexus fails, one direct retry |
+| `NEXUS=1` | Require Nexus, e.g. `make -C infra init NEXUS=1` |
+| `NEXUS=0` | Direct |
+
+The fallback matters because Nexus runs in the cluster built from this repository.
+
+Nexus uses a self-signed certificate. The pipeline trusts the pinned copy `certs/local-proxy.crt` for `terraform init` only. Terraform on macOS only trusts the keychain, so a Mac that doesn't trust this certificate downloads directly. The certificate is also marked as a certificate authority; replacing it with a private CA plus an ordinary server certificate is safer than trusting it on a Mac. It expires on 2027-10-18. Update `certs/local-proxy.crt` whenever the certificate changes.
+
