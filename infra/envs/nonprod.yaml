@@ -325,18 +325,101 @@ harness:
     connector_ref: songhanpoo # project-level GitHub connector
     repo_name: homelab-infra
     branch: master
-  # Pipelines Harness reads from Git (Remote). The key is the pipeline identifier, and must equal
+  # Everything below starts disabled. Enable one item at a time; see
+  # modules/harness-pipeline/README.md for the prerequisites and rules.
+  #
+  # Pipelines Harness reads from Git (Remote). The key is the pipeline identifier and must equal
   # "identifier" in the YAML file. Terraform only onboards them: afterwards edit the file in Git.
-  # Keep enabled: false until the file is on the branch above and no Inline pipeline has the same
-  # identifier (see README, "Pipelines from Git"). Setting an onboarded one back to false is blocked.
+  # Setting an onboarded pipeline back to enabled: false is blocked.
+  #   kind: operation | cd   come from this repository (git above)
+  #   kind: ci               needs its own git block; its branch is the release branch
   pipelines:
     iacm:
       enabled: false
+      kind: operation
       name: iacm
       description: Terraform plan, scan, approve and apply for this repository
       file_path: .harness/pipelines/iac.yaml
     ansible:
       enabled: false
+      kind: operation
       name: ansible
       description: IaCM Ansible for others/ansible
       file_path: .harness/pipelines/ansible.yaml
+    cotsbuild:
+      enabled: false
+      kind: ci
+      name: cots-build
+      description: Build, test, scan and push the visa-bulletin image
+      file_path: .harness/cots-build.yaml
+      git:
+        connector_ref: visabulletinconnector
+        repo_name: visa-bulletin
+        branch: master
+    nextbulletinbuild:
+      # The file is not on develop yet: merge it there before enabling.
+      enabled: false
+      kind: ci
+      name: next-bulletin-build
+      description: Build, test, scan and push the next-bulletin image
+      file_path: .harness/cots-build.yaml
+      repo_name_input: true
+      git:
+        connector_ref: songhanpoo
+        repo_name: next-visa-bulletin
+        branch: develop
+    k8sdeploy:
+      enabled: false
+      kind: cd
+      name: k8s-deploy
+      description: Deploy a CI image to Kubernetes with Helm, after approval
+      file_path: .harness/pipelines/cd.yaml
+
+  # Triggers: github_push or cron (UTC). operation triggers only ever plan. No pull request
+  # triggers. A trigger can be enabled for a pipeline that already exists in Harness.
+  triggers:
+    iacm_push_infra:
+      enabled: false
+      pipeline: iacm
+      type: github_push
+      target: infra
+      changed_files_regex: "^(infra|modules)/.*"
+    iacm_push_kube_prod:
+      enabled: false
+      pipeline: iacm
+      type: github_push
+      target: kube-addons/prod
+      changed_files_regex: "^(kube-addons/prod|modules)/.*"
+    iacm_push_kube_nonprod:
+      enabled: false
+      pipeline: iacm
+      type: github_push
+      target: kube-addons/nonprod
+      changed_files_regex: "^(kube-addons/(nonprod|charts)|modules)/.*"
+    # Nightly drift checks: 19:00 UTC is 02:00 in Asia/Ho_Chi_Minh.
+    iacm_nightly_infra:
+      enabled: false
+      pipeline: iacm
+      type: cron
+      target: infra
+      cron: "0 19 * * *"
+    iacm_nightly_kube_prod:
+      enabled: false
+      pipeline: iacm
+      type: cron
+      target: kube-addons/prod
+      cron: "20 19 * * *"
+    iacm_nightly_kube_nonprod:
+      enabled: false
+      pipeline: iacm
+      type: cron
+      target: kube-addons/nonprod
+      cron: "40 19 * * *"
+    cotsbuild_push:
+      enabled: false
+      pipeline: cotsbuild
+      type: github_push
+    nextbulletinbuild_push:
+      enabled: false
+      pipeline: nextbulletinbuild
+      type: github_push
