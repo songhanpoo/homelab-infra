@@ -49,6 +49,16 @@ Terraform no longer writes `kubeconfig` and `talosconfig`. Run `make -C infra ku
 
 Annotations need the `CI_ENABLE_HARNESS_ANNOTATIONS` and `PIPE_HARNESS_ANNOTATIONS` feature flags; ask Harness Support to enable them. Without `hcli` in the step, the log says so and the run continues.
 
+## Builds fail with `ENOTFOUND nexus.local.proxy`
+
+Seen in Alpine (musl) build pods. The name has an IPv4 record, but the IPv6 (AAAA) lookup returned `NXDOMAIN`, which Alpine treats as "no such name". Debian-based tools still resolve it, so it looks intermittent. Check:
+
+```sh
+dig @192.168.1.79 nexus.local.proxy AAAA   # status should be NOERROR, not NXDOMAIN
+```
+
+Pod lookups go through CoreDNS, whose `local.proxy` block forwards to Pi-hole, so Talos node `nameservers` don't change them. Adding `template IN AAAA local.proxy { rcode NOERROR }` (on separate lines) to that block fixed a reproduction with CoreDNS 1.14.2. That block was added by hand to the `coredns` ConfigMap and isn't managed in this repo, so a rebuild or Talos upgrade may remove it.
+
 ## Trivy scan before approval
 
 The pipeline runs Plan -> **Scan** -> Approve -> Execute. `.harness/scripts/trivy-scan.sh` scans the target's `.tf` files, the modules they use, and local Helm charts referenced by the target's env files. Charts are rendered with their **own default values**, not the values Terraform deploys. Remote charts (Nexus, Kestra and others) are not scanned. This is a misconfiguration scan only: no secret or image scanning.

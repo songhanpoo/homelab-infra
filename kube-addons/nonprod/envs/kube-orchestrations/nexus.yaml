@@ -73,8 +73,8 @@ nexus:
             blocked: false
             autoBlock: true
             connection:
-            retries: 0
-            useTrustStore: false
+              retries: 0
+              useTrustStore: false
           storage:
             blobStoreName: default
             strictContentTypeValidation: false
@@ -96,8 +96,8 @@ nexus:
             blocked: false
             autoBlock: true
             connection:
-            retries: 0
-            useTrustStore: false
+              retries: 0
+              useTrustStore: false
           storage:
             blobStoreName: default
             strictContentTypeValidation: false
@@ -133,8 +133,8 @@ nexus:
             blocked: false
             autoBlock: true
             connection:
-            retries: 0
-            useTrustStore: false
+              retries: 0
+              useTrustStore: false
           storage:
             blobStoreName: default
             strictContentTypeValidation: false
