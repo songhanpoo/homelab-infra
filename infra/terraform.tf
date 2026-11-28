@@ -12,6 +12,10 @@ terraform {
       source  = "kreuzwerker/docker"
       version = "3.6.2"
     }
+    harness = {
+      source  = "harness/harness"
+      version = "0.47.8"
+    }
   }
   # State lives in the Harness IaCM workspace "homelabinfra".
   # The password is a Harness API token, supplied through TF_HTTP_PASSWORD. Never put it here.

@@ -35,6 +35,20 @@ Editing cloud-init settings does **not** update the ISO volume on the host (`ign
 
 Terraform no longer writes `kubeconfig` and `talosconfig`. Run `make -C infra kubeconfig` to write them to `~/.kube/talos-paul/` and `~/.talos/talos-paul/`. This replaces the files there.
 
+## Cluster credentials in Harness secrets
+
+`infra/harness-secrets.tf` keeps two project secrets current from the Talos module, base64 on one line:
+
+| Secret | Contents | Used by |
+|---|---|---|
+| `kubeconfig_b64` | cluster kubeconfig (imported, first created by hand) | every `iacm` pipeline run |
+| `talosconfig_b64` | Talos client config: full admin of the nodes | nothing yet |
+
+- `make` passes `TF_HTTP_PASSWORD` to the Harness provider as `HARNESS_PLATFORM_API_KEY` (set that yourself to use a different token). The token needs permission to create and edit project secrets, as well as access to the state.
+- Don't edit these secrets in the UI. The values are also stored in Terraform state, and anyone who can use a secret in a pipeline can get its value.
+- **`destroy` of `infra` is blocked** (`prevent_destroy`): without `kubeconfig_b64`, pipeline runs couldn't rebuild the cluster. To destroy `infra` and keep the secrets, run `terraform state rm harness_platform_secret_text.kubeconfig_b64 harness_platform_secret_text.talosconfig_b64` in `infra/` and remove the `import` block until you manage the secret again.
+- After rebuilding the cluster, apply `infra` **before** running `kube-addons` targets. Rebuild from your own machine: pipeline jobs run on the cluster.
+
 ## Changes shown in Harness
 
 `.harness/scripts/tf-report.sh` publishes each run's resource addresses and actions, never values.
