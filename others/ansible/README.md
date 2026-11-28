@@ -3,8 +3,8 @@
 | File | What | In the Harness pipeline |
 |---|---|---|
 | `redis.yaml` | Redis on the `redis` group | Yes |
-| `postgres.yaml` | PostgreSQL 18 on the `postgres` group. **This server holds data** | No, on purpose |
-| `playbooks.yaml` | Both, for local use | No |
+| `postgres.yaml` | PostgreSQL 18 on the `postgres` group. **This server holds data** | Selectable; does nothing until the host is in the inventory |
+| `playbooks.yaml` | Both | Selectable |
 | `requirements.yml` | `ansible.posix` collection | |
 | `inventories/pg-host` | Inventory for local use | No |
 
@@ -51,7 +51,9 @@ A Static inventory is used because the Remote (Git file) type is in Beta.
   - `dry_run` (string): `true`
 
 ## 4. Pipeline
-Create a pipeline in project `visabulletin` and paste `.harness/pipelines/ansible.yaml`. It runs on the `paultalos` Kubernetes connector in namespace `harness-executions`. Those pods must reach the VMs on port 22.
+`.harness/pipelines/ansible.yaml` (pipeline `ansible`) has a `PLAYBOOK` input: `redis` (default), `postgres` or `playbooks`. Create one Harness Playbook per choice, with these identifiers. Each has its **own** variables: set `dry_run` on each one, and `redis_password` on `redis` and `playbooks`.
+With no `postgres` host in the inventory, the PostgreSQL part matches no hosts: **a successful run then doesn't mean PostgreSQL was checked or configured.**
+Paste the file into a pipeline in project `visabulletin`. It runs on the `paultalos` Kubernetes connector in namespace `harness-executions`. Those pods must reach the VMs on port 22.
 
 ## 5. First runs
 1. Keep `dry_run=true` and run. Check the log: it should connect, and report what would change.
@@ -66,7 +68,7 @@ Redis listens on `127.0.0.1` only (`redis_bind_address`).
 `databases/nonprod` also connects to `192.168.1.120`. The role **replaces** `postgresql.conf` and `pg_hba.conf` and restarts PostgreSQL when they change.
 1. Back up all databases (`pg_dumpall`) and the two config files. **Test a restore** somewhere else.
 2. Compare the server's current files with `roles/postgres/templates/`. Anything set by hand that isn't in the templates will be lost. The template trusts every local (socket) connection and allows `md5` logins from `192.168.1.0/24`.
-3. Create a separate `postgres` playbook (`others/ansible/postgres.yaml`) and a separate pipeline.
+3. Add the `postgres` group with `192.168.1.120` to the inventory, then choose `PLAYBOOK=postgres`.
 4. Dry run first. A dry run shows differences but cannot prove the restart is safe.
 5. Only then set `dry_run=false` and `postgres_confirm=apply-postgres`, and reset both afterwards.
 

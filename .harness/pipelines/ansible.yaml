@@ -1,15 +1,24 @@
-# Redis configuration with Harness IaCM Ansible. Setup: others/ansible/README.md
-# Flow: Approve -> Ansible. The run is a dry run unless the Playbook's dry_run variable is "false".
-# PostgreSQL is deliberately not part of this pipeline.
-# "playbooks" and "inventories" below are the identifiers of what you create in the Harness UI.
+# Harness IaCM Ansible for others/ansible. Setup: others/ansible/README.md
+# Flow: Approve -> Ansible. Pick PLAYBOOK at run time; each choice is a Playbook in Harness:
+#   redis      others/ansible/redis.yaml       (default)
+#   postgres   others/ansible/postgres.yaml    THIS SERVER HOLDS DATA
+#   playbooks  others/ansible/playbooks.yaml   both
+# Every Playbook is a dry run unless its dry_run variable is "false". Real PostgreSQL changes also
+# need postgres_confirm=apply-postgres. The inventory has no "postgres" host on purpose: until it is
+# added, the postgres part matches no hosts and does nothing, even though the run can succeed.
 # The pipeline is stored Inline in Harness: paste it again after editing.
 pipeline:
-  name: ansible-redis
-  identifier: ansibleredis
+  name: ansible
+  identifier: ansible
   projectIdentifier: visabulletin
   orgIdentifier: default
   tags:
     iac: ansible
+  variables:
+    - name: PLAYBOOK
+      type: String
+      description: redis = Redis only. postgres and playbooks include the server that holds data
+      value: <+input>.default(redis).allowedValues(redis,postgres,playbooks)
   stages:
     - stage:
         name: Approve
@@ -24,7 +33,7 @@ pipeline:
                   type: HarnessApproval
                   timeout: 1d
                   spec:
-                    approvalMessage: "Ansible Redis run. Check the playbook's dry_run variable first: false changes the server."
+                    approvalMessage: "Ansible run of PLAYBOOK=<+pipeline.variables.PLAYBOOK>. Check that Playbook's dry_run variable first: false changes the server. postgres and playbooks involve the server that holds data."
                     includePipelineExecutionHistory: true
                     approvers:
                       userGroups:
@@ -52,6 +61,6 @@ pipeline:
                   spec:
                     command: run
           playbooks:
-            - redis
+            - <+pipeline.variables.PLAYBOOK>
           inventories:
             - homelab_databases
