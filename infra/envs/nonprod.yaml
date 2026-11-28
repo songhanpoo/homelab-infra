@@ -178,51 +178,51 @@ databases:
 
         # Final message on console
         final_message: "VM1 is ready! SSH: ssh root@<IP>"
-    redis:
-      machine_type: "primary"
-      cpu: 1
-      memory: 2048
-      disk_size: 51200 # 50 GB
-      datastore_id: default
-      network_config: |
-        version: 2
-        ethernets:
-          enp1s0:
-            dhcp4: false
-            addresses:
-              - 192.168.1.110/24
-            routes:
-              - to: default
-                via: 192.168.1.1
-            nameservers:
-              addresses: [1.1.1.1,1.0.0.1]
-      meta_data: |
-        instance-id: paulsrv-001
-        local-hostname: redis-server
-      user_data: |
-        #cloud-config
-        # Set root password to "password" (change this!)
-        chpasswd:
-          list: |
-            root:password
-          expire: false
-
-        # Enable SSH password authentication
-        ssh_pwauth: true
-
-        # Install and enable SSH server
-        packages:
-          - openssh-server
-
-        # Optional: Add SSH public key for key-based auth (more secure)
-        ssh_authorized_keys:
-          - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDKkT8y9xo14rD58G8H294X1GoAcJ+qt34FVNMvFgsvIPVr5gzNom1/pshjdT+W9FuatKW7l33hkZVpwK07LjzXq0Y/HQi1UNaHzgNI7Kc6I+tgEGyutVW+MyIFP1nOCfweHG2D8anRhWphCsRstmPsznOr7DlBHks0w5tpI9mzhIyKjLo7FGR3L+5Yz2RuvbkB0NhoeaxK1F1laKLrbfd41uG6Ju/6H0WEpIQzmkY9AMEQGVL0HsmVoOaQzrtjRmhTwVWx3ne/hQ7q74FE/YxMwqXUOZV7W0yYPWImJwvAT4gpjOInHYIk+VJRsS4ln0f+/TFYifhhU1R7NdgPopSL46SbYbWFsiSxmdHJVE9YOELot5dyAQOOkqhFojNsN4nyUqY9+38Yvn+3Y2klRPCA1ye7yWiWXM2tNWMwypJL7htMbCtPmYPci+MWf1LIp/3OdCb7UXGamoLWB+rKQMEC1J+DDz8hT/iOUQutWAqY1uYzy/Hypqmt5DFpmBf5M0itxNo0XfbtL7KbyWqcnDsRSnuhDg0ob6h4ohstF/b2zfCghdz5japr9Ez9OzAjduIIqUULnVa+eGyUiEnLy1KBGMk/FxvB5PMpg0KtksHGjoYAIJ3xyCyIj2k2+ibrXQknBzdrvCWSQfAcs6aSeDcXIyJWOoxO6qLgjBLMQwUp0Q== songhanpoo
-
-        # Set timezone
-        timezone: Asia/Ho_Chi_Minh
-
-        # Final message on console
-        final_message: "paulsrv-001 is ready! SSH: ssh root@<IP>"
+    # redis:
+    #   machine_type: "primary"
+    #   cpu: 1
+    #   memory: 2048
+    #   disk_size: 51200 # 50 GB
+    #   datastore_id: default
+    #   network_config: |
+    #     version: 2
+    #     ethernets:
+    #       enp1s0:
+    #         dhcp4: false
+    #         addresses:
+    #           - 192.168.1.110/24
+    #         routes:
+    #           - to: default
+    #             via: 192.168.1.1
+    #         nameservers:
+    #           addresses: [1.1.1.1,1.0.0.1]
+    #   meta_data: |
+    #     instance-id: paulsrv-001
+    #     local-hostname: redis-server
+    #   user_data: |
+    #     #cloud-config
+    #     # Set root password to "password" (change this!)
+    #     chpasswd:
+    #       list: |
+    #         root:password
+    #       expire: false
+    #
+    #     # Enable SSH password authentication
+    #     ssh_pwauth: true
+    #
+    #     # Install and enable SSH server
+    #     packages:
+    #       - openssh-server
+    #
+    #     # Optional: Add SSH public key for key-based auth (more secure)
+    #     ssh_authorized_keys:
+    #       - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDKkT8y9xo14rD58G8H294X1GoAcJ+qt34FVNMvFgsvIPVr5gzNom1/pshjdT+W9FuatKW7l33hkZVpwK07LjzXq0Y/HQi1UNaHzgNI7Kc6I+tgEGyutVW+MyIFP1nOCfweHG2D8anRhWphCsRstmPsznOr7DlBHks0w5tpI9mzhIyKjLo7FGR3L+5Yz2RuvbkB0NhoeaxK1F1laKLrbfd41uG6Ju/6H0WEpIQzmkY9AMEQGVL0HsmVoOaQzrtjRmhTwVWx3ne/hQ7q74FE/YxMwqXUOZV7W0yYPWImJwvAT4gpjOInHYIk+VJRsS4ln0f+/TFYifhhU1R7NdgPopSL46SbYbWFsiSxmdHJVE9YOELot5dyAQOOkqhFojNsN4nyUqY9+38Yvn+3Y2klRPCA1ye7yWiWXM2tNWMwypJL7htMbCtPmYPci+MWf1LIp/3OdCb7UXGamoLWB+rKQMEC1J+DDz8hT/iOUQutWAqY1uYzy/Hypqmt5DFpmBf5M0itxNo0XfbtL7KbyWqcnDsRSnuhDg0ob6h4ohstF/b2zfCghdz5japr9Ez9OzAjduIIqUULnVa+eGyUiEnLy1KBGMk/FxvB5PMpg0KtksHGjoYAIJ3xyCyIj2k2+ibrXQknBzdrvCWSQfAcs6aSeDcXIyJWOoxO6qLgjBLMQwUp0Q== songhanpoo
+    #
+    #     # Set timezone
+    #     timezone: Asia/Ho_Chi_Minh
+    #
+    #     # Final message on console
+    #     final_message: "paulsrv-001 is ready! SSH: ssh root@<IP>"
     # mongo:
     #   machine_type: "primary"
     #   cpu: 1
