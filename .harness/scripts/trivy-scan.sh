@@ -2,15 +2,17 @@
 # Trivy misconfiguration scan of one pipeline target. Run from the repository root, in the
 # pinned Trivy image (POSIX sh; needs no extra tools). It uses no credentials.
 #   trivy-scan.sh scan <out-dir>   write trivy.json and trivy.sarif, print the findings
-#   trivy-scan.sh gate <out-dir>   exit 1 if there are findings at or above SCAN_FAIL_ON
-# Env: TARGET (scan); SCAN_FAIL_ON = high (default) | critical | none (gate).
+#   trivy-scan.sh gate <out-dir>   exit 1 if there are findings at the configured severities
+# Env, from manifest.yaml through read-manifest.sh:
+#   scan: TARGET, SCAN_IGNORE_FILE (default .trivyignore)
+#   gate: SCAN_SEVERITY (default HIGH,CRITICAL), SCAN_IGNORE_FAILURE (default false)
 #
 # Scanned: the target's .tf files, the modules they use, and local Helm charts that the target's
 # env files use (rendered with the chart's own default values).
 # Limit: Trivy has few or no checks for providers such as libvirt, Talos, Pi-hole or PostgreSQL,
 # and in testing it missed a privileged Kubernetes pod written in Terraform. A clean Terraform
 # result is weak evidence.
-# Accepted findings go in .trivyignore (one ID per line, with a comment saying why).
+# Accepted findings go in the ignore file (one ID per line, with a comment saying why).
 set -eu
 
 MODE="${1:?usage: trivy-scan.sh scan|gate <out-dir>}"
@@ -57,7 +59,11 @@ scan)
   echo "Trivy scan of $TARGET | modules: $(echo ${MODULES:-none}) | local charts: $(echo ${CHARTS:-none})"
 
   set --
-  if [ -f "$REPO/.trivyignore" ]; then set -- --ignorefile "$REPO/.trivyignore"; fi
+  IGNORE="$REPO/${SCAN_IGNORE_FILE:-.trivyignore}"
+  if [ -f "$IGNORE" ]; then
+    echo "Using ignore file ${SCAN_IGNORE_FILE:-.trivyignore}"
+    set -- --ignorefile "$IGNORE"
+  fi
   mkdir -p "$OUT"
   rm -f "$OUT/trivy.json" "$OUT/trivy.sarif"
   (cd "$SRC" && trivy config $OFFLINE "$@" --exit-code 0 --format json --output "$OUT/trivy.json" .)
@@ -69,16 +75,16 @@ scan)
 
 gate)
   [ -s "$OUT/trivy.json" ] || fail "no scan report at $OUT/trivy.json"
-  case "${SCAN_FAIL_ON:-high}" in
-    high)     LEVELS=HIGH,CRITICAL ;;
-    critical) LEVELS=CRITICAL ;;
-    none)     echo "SCAN_FAIL_ON=none: findings are reported and do not block"; exit 0 ;;
-    *)        fail "SCAN_FAIL_ON must be high, critical or none" ;;
+  LEVELS=${SCAN_SEVERITY:-HIGH,CRITICAL}
+  case "${SCAN_IGNORE_FAILURE:-false}" in
+    true)  echo "ignoreFailure is true: findings are reported and do not block"; exit 0 ;;
+    false) ;;
+    *)     fail "SCAN_IGNORE_FAILURE must be true or false" ;;
   esac
   if trivy convert --severity "$LEVELS" --exit-code 1 --format table "$OUT/trivy.json"; then
     echo "Gate passed: no findings at $LEVELS"
   else
-    fail "gate failed: findings at $LEVELS (or the report could not be read). Fix them, or accept them in .trivyignore with a reason."
+    fail "gate failed: findings at $LEVELS (or the report could not be read). Fix them, or accept them in the ignore file with a reason."
   fi
   ;;
 

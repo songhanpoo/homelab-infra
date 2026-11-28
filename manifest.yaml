@@ -1,0 +1,68 @@
+# Pipeline contract for this infrastructure repository.
+#
+# Two roots:
+#   application: what this repository is and who owns it (descriptive only)
+#   pipeline:    what .harness/pipelines/iac.yaml reads
+#
+# Read by .harness/scripts/read-manifest.sh in the first step of every run. It checks:
+#   apiVersion, pipeline.platformScans.iac.*, and pipeline.targets.<TARGET> (plus its "scan" block).
+# Everything else here is documentation. Edit, commit and push: no need to re-paste the pipeline.
+apiVersion: cots/v2
+kind: InfrastructureManifest
+
+application:
+  appName: homelab-infra
+  appId: homelabinfra
+  displayName: Homelab Infrastructure
+  description: >-
+    Terraform for the Talos Kubernetes cluster on libvirt, its platform add-ons,
+    applications and PostgreSQL databases.
+  appType: infrastructure
+  lifecycle: nonprod
+  codeBase:
+    language: hcl
+    tool: terraform
+    toolVersion: "1.12.2" # the image tag is set in .harness/pipelines/iac.yaml
+  labels:
+    appCategory: platform
+    costCentre: TODO # fill in
+    supportGroup: TODO # fill in
+    owner: songhanpoo
+
+pipeline:
+  platformScans:
+    # Trivy misconfiguration scan, in the Scan stage before approval.
+    # A clean Terraform result is weak evidence: see README, "Trivy scan before approval".
+    iac:
+      # false skips the whole Scan stage (scan, report to Harness and gate) for every target.
+      # A target can override this under targets.<name>.scan.
+      enabled: true
+      tool: trivy
+      # Version and digest are both required, so the image can't change under the same tag.
+      # 0.69.4-0.69.6 were malicious releases and are refused.
+      version: "0.76.2"
+      digest: sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+      # Findings at these levels fail the gate.
+      severity:
+        - HIGH
+        - CRITICAL
+      # Repo-relative. Optional file: one finding ID per line, with a comment saying why.
+      ignoreFile: .trivyignore
+      # true still runs and reports the scan, but findings no longer block approval.
+      ignoreFailure: false
+
+  # One entry per pipeline TARGET. A target may override "enabled" and "ignoreFailure":
+  #   scan:
+  #     enabled: false
+  targets:
+    infra:
+      description: libvirt VMs and the Talos cluster
+    kube-addons/prod:
+      description: Ingress, storage, DNS, Traefik and metrics
+      dependsOn: [infra]
+    databases/nonprod:
+      description: PostgreSQL databases, roles and grants
+      dependsOn: [infra]
+    kube-addons/nonprod:
+      description: Applications
+      dependsOn: [kube-addons/prod, databases/nonprod]

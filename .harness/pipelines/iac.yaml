@@ -11,10 +11,11 @@
 #
 # Flow: Plan -> Scan -> Approve -> Execute. ACTION=plan stops after Scan, and a plan with no changes
 # skips Approve and Execute.
+# manifest.yaml decides whether Scan runs and what blocks; the first Plan step reads it.
 # Scan runs Trivy (.harness/scripts/trivy-scan.sh), sends the findings to Harness and then fails
-# on findings at or above SCAN_FAIL_ON, which blocks Approve and Execute. destroy skips Scan.
+# on findings at the manifest's severities, which blocks Approve and Execute. destroy skips Scan.
 # Sending findings needs the STO CustomIngest step; if that step fails, the gate still applies.
-# Keep the Trivy image pinned by digest: releases 0.69.4-0.69.6 were malicious (CVE-2026-33634).
+# manifest.yaml pins the Trivy image by digest: releases 0.69.4-0.69.6 were malicious (CVE-2026-33634).
 # destroy needs CONFIRM_DESTROY=destroy-<TARGET>.
 # The Tests tab lists resource changes (not tests): planned, then applied after a successful run.
 # Execute plans again and stops unless the commit and the list of changes (addresses and
@@ -46,10 +47,6 @@ pipeline:
       type: String
       description: plan = plan only. apply or destroy = plan, approve, then run it
       value: <+input>.allowedValues(plan,apply,destroy)
-    - name: SCAN_FAIL_ON
-      type: String
-      description: Trivy findings that block approval. high = HIGH and CRITICAL
-      value: <+input>.default(high).allowedValues(high,critical,none)
     - name: CONFIRM_DESTROY
       type: String
       description: Only for destroy. Type destroy-<TARGET>, e.g. destroy-infra or destroy-kube-addons/nonprod
@@ -68,6 +65,27 @@ pipeline:
               namespace: harness-executions
           execution:
             steps:
+              - step:
+                  name: read manifest
+                  identifier: read_manifest
+                  type: Run
+                  spec:
+                    connectorRef: nexusdocker
+                    image: library/alpine:3.24.2
+                    shell: Sh
+                    envVariables:
+                      TARGET: <+pipeline.variables.TARGET>
+                    command: |
+                      set -eu
+                      sh .harness/scripts/read-manifest.sh /tmp/manifest.env
+                      . /tmp/manifest.env
+                      export SCAN_ENABLED SCAN_IMAGE_TAG SCAN_SEVERITY SCAN_IGNORE_FILE SCAN_IGNORE_FAILURE
+                    outputVariables:
+                      - name: SCAN_ENABLED
+                      - name: SCAN_IMAGE_TAG
+                      - name: SCAN_SEVERITY
+                      - name: SCAN_IGNORE_FILE
+                      - name: SCAN_IGNORE_FAILURE
               - step:
                   name: terraform plan
                   identifier: tf_plan
@@ -103,7 +121,7 @@ pipeline:
         type: CI
         when:
           pipelineStatus: Success
-          condition: <+pipeline.variables.ACTION> != "destroy"
+          condition: <+pipeline.variables.ACTION> != "destroy" && <+pipeline.stages.plan.spec.execution.steps.read_manifest.output.outputVariables.SCAN_ENABLED> == "true"
         spec:
           cloneCodebase: true   # its own pod: no credentials and no shared files with Plan
           sharedPaths:
@@ -121,10 +139,11 @@ pipeline:
                   type: Run
                   spec:
                     connectorRef: nexusdocker
-                    image: aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+                    image: aquasec/trivy:<+pipeline.stages.plan.spec.execution.steps.read_manifest.output.outputVariables.SCAN_IMAGE_TAG>
                     shell: Sh
                     envVariables:
                       TARGET: <+pipeline.variables.TARGET>
+                      SCAN_IGNORE_FILE: <+pipeline.stages.plan.spec.execution.steps.read_manifest.output.outputVariables.SCAN_IGNORE_FILE>
                     command: |
                       set -eu
                       sh .harness/scripts/trivy-scan.sh scan /shared/scan_results
@@ -158,10 +177,11 @@ pipeline:
                   type: Run
                   spec:
                     connectorRef: nexusdocker
-                    image: aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+                    image: aquasec/trivy:<+pipeline.stages.plan.spec.execution.steps.read_manifest.output.outputVariables.SCAN_IMAGE_TAG>
                     shell: Sh
                     envVariables:
-                      SCAN_FAIL_ON: <+pipeline.variables.SCAN_FAIL_ON>
+                      SCAN_SEVERITY: <+pipeline.stages.plan.spec.execution.steps.read_manifest.output.outputVariables.SCAN_SEVERITY>
+                      SCAN_IGNORE_FAILURE: <+pipeline.stages.plan.spec.execution.steps.read_manifest.output.outputVariables.SCAN_IGNORE_FAILURE>
                     command: |
                       set -eu
                       sh .harness/scripts/trivy-scan.sh gate /shared/scan_results
@@ -181,7 +201,7 @@ pipeline:
                   type: HarnessApproval
                   timeout: 1d
                   spec:
-                    approvalMessage: "ACTION=<+pipeline.variables.ACTION> on <+pipeline.variables.TARGET>. Check the changes on the Tests tab, or the change summary at the end of the Plan log, before approving. Check the Trivy results from the Scan stage too (destroy runs skip it). Destroy permanently deletes resources and data."
+                    approvalMessage: "ACTION=<+pipeline.variables.ACTION> on <+pipeline.variables.TARGET>. Check the changes on the Tests tab, or the change summary at the end of the Plan log, before approving. Trivy scan enabled by manifest.yaml: <+pipeline.stages.plan.spec.execution.steps.read_manifest.output.outputVariables.SCAN_ENABLED> (ignoreFailure: <+pipeline.stages.plan.spec.execution.steps.read_manifest.output.outputVariables.SCAN_IGNORE_FAILURE>). If enabled, check the Scan stage results; destroy runs skip it. Destroy permanently deletes resources and data."
                     includePipelineExecutionHistory: true
                     approvers:
                       userGroups:

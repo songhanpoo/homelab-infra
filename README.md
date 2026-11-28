@@ -10,6 +10,7 @@
 | `kube-addons/charts/` | Local Helm charts (`nonprod/charts` links here) | |
 | `modules/` | Terraform modules for both roots, referenced as `../modules/<name>` | `.harness/pipelines/iac.yaml` (format check) |
 | `others/` | Unmaintained / parked: `ansible`, `airflow-dags`, `jenkins-inventory`, `crawl4ai`, `vault-examples`, `misc` | none |
+| `manifest.yaml` | Repository metadata and the Trivy scan settings the pipeline reads | |
 | `.harness/` | Harness pipeline definition (Plan -> Scan -> Approve -> Execute) and the scripts it runs | |
 
 `kube-addons/prod` and `kube-addons/nonprod` are two tiers of the **same cluster**, not separate environments. Each folder (and `infra/`) has its own state in its own Harness IaCM workspace. Apply `infra`, then `kube-addons/prod`, then `databases/`, then `kube-addons/nonprod`; destroy in reverse.
@@ -53,10 +54,21 @@ The pipeline runs Plan -> **Scan** -> Approve -> Execute. `.harness/scripts/triv
 
 **A clean Terraform result is weak evidence.** Trivy has few or no checks for libvirt, Talos, Pi-hole or PostgreSQL. In testing it caught an open AWS rule but missed a privileged Kubernetes pod written in Terraform and a `root:password` cloud-init.
 
-- `SCAN_FAIL_ON`: `high` (default, HIGH and CRITICAL), `critical`, or `none`. A failed scan stops Approve and Execute. `ACTION=destroy` skips the scan.
-- Accept a finding by adding its ID to `.trivyignore` at the repo root, with a comment saying why. An ID there is ignored for **every** target.
+- Settings are in `manifest.yaml` under `pipeline.platformScans.iac`; `.harness/scripts/read-manifest.sh` checks them in the first step of each run.
+
+| Key | Effect |
+|---|---|
+| `enabled` | `false` skips the whole Scan stage |
+| `severity` | Levels that fail the gate (default here: HIGH, CRITICAL) |
+| `ignoreFailure` | `true` scans and reports, but never blocks |
+| `ignoreFile` | Accepted finding IDs, one per line with a reason. An ID there is ignored for **every** target |
+| `version`, `digest` | The Trivy image; both required |
+
+- One target can override `enabled` or `ignoreFailure`, under `pipeline.targets.<name>.scan`.
+- A failed gate stops Approve and Execute. `ACTION=destroy` always skips the scan.
+- **A commit can turn the scan off.** The approval message and the `read manifest` log show the setting: review changes to `manifest.yaml` like pipeline code.
 - Findings go to Harness as SARIF through the STO `CustomIngest` step. If that step fails, it is ignored and the gate still applies; the findings are also in the `trivy scan` log.
-- The image is pinned by digest and runs offline with its built-in checks. Trivy 0.69.4-0.69.6 releases were malicious (CVE-2026-33634): never use a floating tag, and verify a new version and digest before updating.
+- The image runs offline with its built-in checks. Trivy 0.69.4-0.69.6 releases were malicious (CVE-2026-33634): verify a new version and digest before updating `manifest.yaml`.
 
 ## Provider downloads through Nexus
 
